@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
-=======
 # History files
 .Rhistory
 .Rapp.history
@@ -53,4 +47,3 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
->>>>>>> fa19042bd80a84e543fcf511062c535d243d5f05
