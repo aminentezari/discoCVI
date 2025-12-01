@@ -1,5 +1,0 @@
-"dataset","method","disco_score"
-"two_moons","ground_truth",0.683762982059986
-"two_moons","dbscan",0.683762982059986
-"two_moons","kmeans",0.0723117466905368
-"two_moons","hierarchical",0.227239155897384
