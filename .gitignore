@@ -8,8 +8,7 @@
 
 # User-specific files
 .Ruserdata
-.RData 2
-.RData 3
+
 
 # Example code in package build process
 *-Ex.R
