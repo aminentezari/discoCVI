@@ -18,7 +18,7 @@ options(digits = 10)
 # DATA
 # =============================================================================
 
-df     <- read.csv("~/Desktop/R-projects/Disco-R/sklearn-circle/circles_data_points.csv")
+df     <- read.csv("~/Desktop/R-projects/Disco-R/experiments/sklearn-circle/circles_data_points.csv")
 X      <- as.matrix(df[, c("x1", "x2")])
 y_true <- df$true_label
 
@@ -34,11 +34,11 @@ n_db_clusters <- length(unique(db_labels[db_labels != -1L]))
 n_db_noise    <- sum(db_labels == -1L)
 cat(sprintf("  -> %d cluster(s), %d noise point(s)\n", n_db_clusters, n_db_noise))
 
-# Load exact Python K-Means labels instead of rerunning
+# Load exact Python K-Means labels for numerical equivalence
 cat("Loading Python K-Means labels...\n")
-km_df     <- read.csv("~/Desktop/R-projects/Disco-R/sklearn-circle/python_km_labels.csv")
+km_df     <- read.csv("~/Desktop/R-projects/Disco-R/experiments/sklearn-circle/python_km_labels.csv")
 km_labels <- as.integer(km_df$km_label)
-cat("  -> cluster sizes — 0:", sum(km_labels==0), " 1:", sum(km_labels==1), "\n")
+cat("  -> cluster sizes — 0:", sum(km_labels == 0), " 1:", sum(km_labels == 1), "\n")
 
 # =============================================================================
 # DISCO SCORES
@@ -174,7 +174,7 @@ title_grob <- grid::textGrob(
 final_plot <- gridExtra::arrangeGrob(p1, p2, p3, p4, p5, p6,
                                      ncol = 3, top = title_grob)
 
-out_path <- "~/Desktop/R-projects/Disco-R/sklearn-circle/disco_visualization.png"
+out_path <- "~/Desktop/R-projects/Disco-R/experiments/sklearn-circle/disco_visualization.png"
 ggsave(out_path, plot = final_plot,
        width = 15, height = 10, dpi = 150, bg = "#1e1e2e")
 
