@@ -6,6 +6,7 @@ required_pkgs <- c("dbscan", "FNN", "ggplot2", "gridExtra")
 for (p in required_pkgs) {
   if (!requireNamespace(p, quietly = TRUE))
     install.packages(p, repos = "https://cloud.r-project.org", quiet = TRUE)
+  
 }
 
 setwd("~/Desktop/R-projects/Disco-R/R")
@@ -13,6 +14,7 @@ source("dctree.R")
 source("disco.R")
 
 options(digits = 10)
+
 
 # =============================================================================
 # DATA
