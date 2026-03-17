@@ -1,6 +1,0 @@
-"dataset","method","disco_score","n_clusters","n_noise","mean_pointwise","sd_pointwise"
-"two_moons","ground_truth",0.683762982059986,2,0,0.683762982059986,0.0269610916174704
-"two_moons","dbscan_optimal",0.683762982059986,2,0,0.683762982059986,0.0269610916174704
-"two_moons","dbscan_suboptimal",0,2,0,0,0
-"two_moons","kmeans",0.215290081840449,2,0,0.215290081840449,0.358353227122312
-"two_moons","hierarchical",0.227239155897384,1,0,0.227239155897384,0.471280818963674
