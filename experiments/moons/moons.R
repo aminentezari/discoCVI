@@ -10,10 +10,10 @@ for (p in required_pkgs) {
 }
 
 setwd("~/Desktop/R-projects/Disco-R/R")
-source("dctree.R")
+
 source("disco.R")
 
-options(digits = 10)
+options(digits = 20)
 
 # =============================================================================
 # DATA GENERATION
@@ -124,8 +124,8 @@ sep <- paste(rep("=", 62), collapse = "")
 cat("\n", sep, "\n", sep = "")
 cat("  DISCO RESULTS — 10 decimal places\n")
 cat(sep, "\n", sep = "")
-cat(sprintf("\n  DISCO score — DBSCAN  : %.10f\n", disco_db))
-cat(sprintf("  DISCO score — K-Means : %.10f\n",  disco_km))
+cat(sprintf("\n  DISCO score — DBSCAN  : %.20f\n", disco_db))
+cat(sprintf("  DISCO score — K-Means : %.20f\n",  disco_km))
 cat("\n", sep, "\n", sep = "")
 
 # =============================================================================
