@@ -409,7 +409,8 @@ ALGORITHM:
    │ MST ← Prim's algorithm on G              │
    └──────────────────────────────────────────┘
    
-   Implementation: igraph::mst()
+   Implementation: get_mst_edges() — exact port of Python's
+   _get_mst_edges() (dctree.py lines 401-438)
    Time: O(n² log n)
 
 4. EXTRACT DC-DISTANCES FROM MST
@@ -421,7 +422,8 @@ ALGORITHM:
    │     dc_dists[i,j] ← max edge on path      │
    └────────────────────────────────────────────┘
    
-   Implementation: igraph::shortest_paths()
+   Implementation: extract_dc_distances_from_mst() — BFS minimax
+   path traversal over MST adjacency list
    Time: O(n³) naive, O(n²) optimized
 
 TOTAL TIME COMPLEXITY: O(n³)
@@ -437,8 +439,11 @@ SPACE COMPLEXITY: O(n²)
 ```
 Disco-R/
 ├── R/
-│   ├── disco.R       ← Main DISCO functions
-│   ├── dctree.R      ← DC-distance computation
+│   ├── disco.R       ← All algorithm functions (DC-distance + scoring)
+│   │                    disco_score(), disco_samples(),
+│   │                    p_cluster(), p_noise(),
+│   │                    compute_dc_distances(), get_mst_edges(),
+│   │                    calculate_reachability_distance()
 │   └── utils.R       ← Helper functions
 ├── man/              ← Documentation (auto-generated)
 ├── examples/
@@ -511,46 +516,46 @@ Returns:
 
 ---
 
-### 7.2 DC-Distance Functions (dctree.R)
+### 7.2 DC-Distance Functions (disco.R)
 
 #### `compute_dc_distances(X, min_points = 5)`
 ```r
 Purpose: Main function to compute dc-distance matrix
 Algorithm:
-  1. Core distances → FNN::get.knn()
+  1. Core distances → FNN::get.knn() with k = min_points - 1
   2. Mutual reachability distance → element-wise max
-  3. MST → igraph::mst()
-  4. Extract dc-distances → shortest paths in MST
+  3. MST → get_mst_edges() (exact port of Python's Prim)
+  4. Extract dc-distances → BFS minimax path traversal
 
 Output: n×n symmetric distance matrix
 ```
 
-#### `compute_core_distances(X, min_points)`
+#### `calculate_reachability_distance(points, min_points)`
 ```r
-Purpose: Distance to µ-th nearest neighbor
-Implementation: Uses FNN package for efficient k-NN
-Time: O(n log n)
-```
-
-#### `compute_mutual_reachability_distance(X, core_dists)`
-```r
-Purpose: Smooth distance considering local density
-Formula: dm(i,j) = max(κ(i), κ(j), d_euclidean(i,j))
+Purpose: Compute n×n mutual-reachability distance matrix
+Note: min_points must be >= 2
+Implementation: Uses FNN::get.knn with k = min_points - 1
+                (matches Python's self-inclusive partition)
 Time: O(n²)
 ```
 
-#### `compute_mst(dist_matrix)`
+#### `get_mst_edges(dist_matrix)`
 ```r
-Purpose: Minimum spanning tree via Prim's algorithm
-Implementation: Uses igraph package
-Output: igraph MST object
+Purpose: Minimum spanning tree via exact port of Python's Prim
+Note: Preserves same tie-breaking as Python's np.argmin
+      (critical for numerical equivalence)
+Output: data.frame with columns i, j, dist (n-1 edges)
+Time: O(n²)
 ```
 
-#### `extract_dc_distances_from_mst(mst_graph, n)`
+#### `extract_dc_distances_from_mst(mst_edges, n)`
 ```r
 Purpose: Compute minimax path distances from MST
-Method: For each pair, find unique path, take max edge
-Time: O(n³) but runs once per dataset
+Method: BFS from every source node; propagates running
+        maximum edge weight along each tree path
+Input:  data.frame with columns i, j, dist + total n
+Output: n×n symmetric DC-distance matrix
+Time: O(n²)
 ```
 
 ---

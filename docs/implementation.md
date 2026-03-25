@@ -27,7 +27,7 @@ DISCO — K-Means : 0.0270091908  ✅
 ## Bug 1 — Core Distance Off-by-One
 
 ### Location
-- `dctree.R` → `compute_core_distances()`
+- `disco.R` → `calculate_reachability_distance()`
 - `disco.R` → `p_noise()`
 
 ### Root Cause
@@ -68,15 +68,14 @@ core_dists <- knn_result$nn.dist[, k]
 ```
 
 ### Files Changed
-- `R/dctree.R` — `calculate_reachability_distance()`
-- `R/disco.R` — `p_noise()`
+- `R/disco.R` — `calculate_reachability_distance()` and `p_noise()`
 
 ---
 
 ## Bug 2 — MST Tie-Breaking Difference
 
 ### Location
-- `dctree.R` → `compute_mst()` → replaced entirely with `get_mst_edges()`
+- `disco.R` → `compute_mst()` → replaced entirely with `get_mst_edges()`
 
 ### Root Cause
 
@@ -135,7 +134,7 @@ The dc-distances are then extracted via a BFS minimax path traversal over
 the resulting MST adjacency list.
 
 ### Files Changed
-- `R/dctree.R` — `compute_mst()` removed, `get_mst_edges()` added
+- `R/disco.R` — `compute_mst()` removed, `get_mst_edges()` added
 
 ---
 
@@ -192,8 +191,8 @@ km_labels <- as.integer(km_df$km_label)
 
 | # | Bug | Location | Root Cause | Fix |
 |---|---|---|---|---|
-| 1 | Core distance off-by-one | `dctree.R`, `disco.R` | Python includes self (dist=0) in k-NN partition; FNN excludes self | `k = min_points - 1` |
-| 2 | MST tie-breaking | `dctree.R` | `igraph::mst` and Python's Prim break equal-weight edges differently | Port Python's exact `_get_mst_edges()` to R |
+| 1 | Core distance off-by-one | `disco.R` (`calculate_reachability_distance`, `p_noise`) | Python includes self (dist=0) in k-NN partition; FNN excludes self | `k = min_points - 1` |
+| 2 | MST tie-breaking | `disco.R` (`get_mst_edges`) | `igraph::mst` and Python's Prim break equal-weight edges differently | Port Python's exact `_get_mst_edges()` to R |
 | 3 | K-Means non-determinism | `circle1.R` | R and Python RNGs produce different sequences from same seed | Load Python labels from CSV |
 
 ---
