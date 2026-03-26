@@ -2,7 +2,10 @@
 
 > **Density-based Internal Score for Clustering Outcomes**
 
-R implementation of the DISCO metric — a Cluster Validity Index (CVI) for evaluating density-based clustering results, including explicit evaluation of noise point quality. Translated from the original Python reference implementation by Beer, Krieger, Weber et al. (2025).
+R implementation of the DISCO metric — a Cluster Validity Index (CVI) for
+evaluating density-based clustering results, including explicit evaluation of
+noise point quality. Translated from the original Python reference implementation
+by Beer, Krieger, Weber et al. (2025).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![R >= 3.6](https://img.shields.io/badge/R-%3E%3D%203.6-blue.svg)](https://cran.r-project.org/)
@@ -19,6 +22,7 @@ R implementation of the DISCO metric — a Cluster Validity Index (CVI) for eval
 - [Function Reference](#function-reference)
 - [Algorithm](#algorithm)
 - [Implementation Notes](#implementation-notes)
+- [Experimental Results](#experimental-results)
 - [File Structure](#file-structure)
 - [Results Interpretation](#results-interpretation)
 - [Citation](#citation)
@@ -27,7 +31,9 @@ R implementation of the DISCO metric — a Cluster Validity Index (CVI) for eval
 
 ## Overview
 
-DISCO evaluates clustering quality **without ground truth labels** by using **density-connectivity distance (dc-distance)** instead of Euclidean distance. It is the first CVI that:
+DISCO evaluates clustering quality **without ground truth labels** by using
+**density-connectivity distance (dc-distance)** instead of Euclidean distance.
+It is the first CVI that:
 
 - Handles **arbitrary-shaped clusters** (not just convex/spherical)
 - Explicitly evaluates **noise point quality** (not just cluster quality)
@@ -37,12 +43,13 @@ DISCO evaluates clustering quality **without ground truth labels** by using **de
 
 ## Why DISCO?
 
-Traditional CVIs like Silhouette and Davies-Bouldin assume convex clusters and ignore noise. On non-convex data, they can rank a wrong algorithm higher than the correct one:
+Traditional CVIs like Silhouette and Davies-Bouldin assume convex clusters and
+ignore noise. On non-convex data, they rank the wrong algorithm higher:
 
 | Algorithm | Silhouette | Davies-Bouldin | **DISCO** |
 |-----------|-----------|----------------|-----------|
 | DBSCAN (correct) | −0.16 ❌ | 2.8 (bad) ❌ | **0.68 ✅** |
-| K-Means (wrong) | 0.37 ✅ | 0.6 (good) ✅ | **0.22 ❌** |
+| K-Means (wrong)  | 0.37 ✅  | 0.6 (good) ✅ | **0.22 ❌** |
 
 DISCO correctly identifies DBSCAN as better on non-convex data.
 
@@ -57,8 +64,6 @@ devtools::install_github("aminentezari/Disco-R")
 
 **Dependencies** (installed automatically):
 - `FNN` — fast k-nearest neighbor search
-- `igraph` — minimum spanning tree computation
-- `dbscan` — for clustering examples
 
 ---
 
@@ -71,26 +76,21 @@ library(dbscan)
 # 1. Generate synthetic data
 data   <- make_circles(n_samples = 300, noise = 0.05, factor = 0.4, random_state = 42)
 X      <- data$X
-y_true <- data$labels
 
-# 2. Apply clustering algorithms
-db_result <- dbscan(X, eps = 0.2, minPts = 5)
-db_labels <- as.integer(db_result$cluster)
-db_labels[db_labels == 0L] <- -1L          # 0 → -1 for noise
+# 2. Apply clustering
+db_labels <- dbscan(X, eps = 0.2, minPts = 5)$cluster - 1L  # 0 -> -1 for noise
+km_labels <- kmeans(X, centers = 2, nstart = 10)$cluster - 1L
 
-set.seed(42)
-km_labels <- as.integer(kmeans(X, centers = 2, nstart = 10)$cluster) - 1L
-
-# 3. Compute DISCO scores
-disco_score(X, db_labels)   # → 0.6900921813
-disco_score(X, km_labels)   # → 0.0270091908
+# 3. Evaluate
+disco_score(X, db_labels)   # -> 0.6900921813
+disco_score(X, km_labels)   # -> 0.0270091908
 
 # 4. Per-point scores
 scores <- disco_samples(X, db_labels)
 summary_disco_scores(scores)
 
-# 5. Visualize
-plot_disco_scores(X, db_labels, scores, main = "DBSCAN — DISCO Scores")
+# 5. Visualise
+plot_disco_scores(X, db_labels, scores, main = "DBSCAN - DISCO Scores")
 
 # 6. Compare algorithms
 compare_clusterings(X, list(DBSCAN = db_labels, KMeans = km_labels))
@@ -100,179 +100,153 @@ compare_clusterings(X, list(DBSCAN = db_labels, KMeans = km_labels))
 
 ## Function Reference
 
-### Core Functions (`disco.R`)
+### Core Functions
 
 #### `disco_score(X, labels, min_points = 5)`
-Returns a **single number** summarising overall clustering quality.
-
-```r
-score <- disco_score(X, labels, min_points = 5)
-# → 0.6900921813
-```
+Returns a single number summarising overall clustering quality.
 
 | Argument | Type | Description |
 |---|---|---|
-| `X` | matrix / data.frame | n × p feature matrix |
-| `labels` | integer vector | Cluster labels. Use `-1` for noise points |
-| `min_points` | integer | k for dc-distance computation. Default: `5` |
+| `X` | matrix / data.frame | n x p feature matrix |
+| `labels` | integer vector | Cluster labels; use `-1` for noise |
+| `min_points` | integer | k for dc-distance. Default: `5` |
 
-**Returns:** Single numeric value in [−1, 1].
-
----
+**Returns:** Single numeric in [-1, 1].
 
 #### `disco_samples(X, labels, min_points = 5)`
-Returns a **per-point score** — useful for identifying which points are problematic.
+Returns per-point scores — useful for identifying problematic points.
 
 ```r
-scores      <- disco_samples(X, labels)
-bad_points  <- which(scores < 0)
+scores     <- disco_samples(X, labels)
+bad_points <- which(scores < 0)
 ```
 
-**Returns:** Numeric vector of length n, one score per data point.
+#### `p_cluster(X, labels, min_points, precomputed_dc_dists)`
+Silhouette-style scores using dc-distances. `-1` is treated as a valid cluster here.
 
----
+#### `p_noise(X, labels, min_points, dc_dists)`
+Returns `list(p_sparse, p_far)` for noise points only.
 
-### Utility Functions (`utils.R`)
-
-#### `make_circles(n_samples, noise, factor, random_state)`
-Generates a synthetic concentric circles dataset.
+#### `compute_dc_distances(X, min_points = 5)`
+Returns the n x n DC-distance matrix directly.
 
 ```r
-data <- make_circles(n_samples = 300, noise = 0.05, factor = 0.4, random_state = 42)
-X      <- data$X       # 300 × 2 matrix
-labels <- data$labels  # 0 = outer ring, 1 = inner ring
+D  <- compute_dc_distances(X)
+s1 <- p_cluster(D, labels1, precomputed_dc_dists = TRUE)
+s2 <- p_cluster(D, labels2, precomputed_dc_dists = TRUE)
 ```
 
-#### `make_moons(n_samples, noise, random_state)`
-Generates two interleaving half-circles.
+### Utility Functions
 
-```r
-data <- make_moons(n_samples = 300, noise = 0.05, random_state = 42)
-```
-
-#### `plot_disco_scores(X, labels, scores, main, ...)`
-Visualises pointwise DISCO scores with a red-yellow-green colour scale.
-
-```r
-scores <- disco_samples(X, labels)
-plot_disco_scores(X, labels, scores, main = "DBSCAN Results")
-```
-
-#### `compare_clusterings(X, clustering_list, min_points = 5)`
-Evaluates and ranks multiple clusterings in one call.
-
-```r
-results <- compare_clusterings(X, list(
-  DBSCAN = db_labels,
-  KMeans = km_labels
-))
-print(results)
-#   Clustering DISCO_Score
-# 1     DBSCAN  0.69009218
-# 2     KMeans  0.02700919
-```
-
-#### `summary_disco_scores(scores)`
-Returns descriptive statistics for a vector of pointwise scores.
-
-```r
-summary_disco_scores(disco_samples(X, labels))
-# $mean, $median, $sd, $min, $max, $q25, $q75, $n_negative, $n_positive
-```
+| Function | Description |
+|---|---|
+| `make_circles(n, noise, factor, seed)` | Concentric circles dataset |
+| `make_moons(n, noise, seed)` | Two interleaving crescents |
+| `make_blobs(n, centers, std, seed)` | Gaussian blobs with variable density |
+| `plot_disco_scores(X, labels, scores)` | Red-yellow-green scatter plot |
+| `compare_clusterings(X, list(...))` | Rank multiple clusterings by DISCO |
+| `summary_disco_scores(scores)` | Mean, median, SD, quantiles, n_negative |
 
 ---
 
 ## Algorithm
 
-DISCO computes scores in four steps:
-
-### Step 1 — Core Distance κ(x)
-Distance from point x to its k-th nearest neighbor (controlled by `min_points`).
-Low core distance → dense region. High core distance → sparse region.
-
+### Step 1 - Core Distance
 ```
-κ(x) = d_euclidean(x, x_k)
+k(x) = d_euclidean(x, x_{min_points-1})
 ```
 
-### Step 2 — Mutual Reachability Distance
-Smooths distances based on local density:
-
+### Step 2 - Mutual Reachability Distance
 ```
-dm(x, y) = max( κ(x), κ(y), d_euclidean(x, y) )
+dm(x, y) = max( k(x), k(y), d_euclidean(x, y) )
 ```
 
-### Step 3 — DC-Distance via MST
-Build a complete graph with `dm` as edge weights, compute its Minimum Spanning Tree (MST), then the dc-distance between any two points is the **maximum edge weight on the unique path** between them in the MST (minimax path):
-
+### Step 3 - DC-Distance via MST
 ```
-dc(x, y) = max edge weight on path x → y in MST
+dc(x, y) = max edge weight on minimax path x -> y in MST
 ```
 
-### Step 4 — DISCO Score per Point
+### Step 4 - DISCO Score per Point
 
-**For cluster points** (silhouette-like with dc-distance):
+**Cluster points:**
 ```
-a = mean dc-distance to own cluster
-b = mean dc-distance to nearest other cluster
-
-ρ(x) = (b − a) / max(a, b)     ∈ [−1, 1]
-```
-
-**For noise points** (must satisfy both conditions):
-```
-p_sparse = (κ(x_n) − κ_max(C)) / max(κ(x_n), κ_max(C))   ← is noise sparse?
-p_far    = (dc_min(x_n, C) − κ_max(C)) / max(...)          ← is noise remote?
-
-ρ_noise(x_n) = min(p_sparse, p_far)
+a = mean dc-distance to own cluster (excluding self)
+b = min over other clusters of mean dc-distance
+p(x) = (b - a) / max(a, b)
 ```
 
-**Overall DISCO score:**
+**Noise points:**
 ```
-DISCO = (1/n) Σ ρ(x_i)
+p_sparse = (k(n) - k_max(C)) / max(k(n), k_max(C))
+p_far    = (dc_min(n,C) - k_max(C)) / max(dc_min(n,C), k_max(C))
+p(n)     = min(p_sparse, p_far)
+```
+
+**Overall:**
+```
+DISCO = (1/n) * sum(p(x_i))
 ```
 
 ---
 
 ## Implementation Notes
 
-This R package is a **line-by-line translation** of the Python reference implementation. Three differences were identified and corrected during translation to ensure numerical equivalence:
+This R package is a **line-by-line translation** of the Python reference
+(`disco.py` + `dctree.py`). Three bugs were found and fixed:
 
-### 1. Core Distance Off-by-One
-Python's `np.partition(eucl_dists[i], k)[:k]` **includes the point itself** (distance = 0), so the effective core distance is the `(k−1)`-th nearest neighbor. R's `FNN::get.knn` **excludes the point itself**, requiring `k = min_points − 1` to match Python.
+### Bug 1 - Core Distance Off-by-One
+
+Python includes self (dist=0) in k-NN, so effective neighbor is k-1.
+`FNN::get.knn` excludes self:
 
 ```r
-# Fix applied in dctree.R and disco.R (p_noise):
-k <- min_points - 1
+k          <- min_points - 1
 knn_result <- FNN::get.knn(X, k = k)
 core_dists <- knn_result$nn.dist[, k]
 ```
 
-### 2. MST Tie-Breaking
-When two candidate MST edges have equal weight, `igraph::mst` and Python's custom Prim implementation break ties differently, producing different spanning trees and therefore different dc-distances. The fix was to **port Python's exact `_get_mst_edges()` function** into R, replicating the same Prim's algorithm and `argmin` tie-breaking rule.
+### Bug 2 - MST Tie-Breaking
 
-```r
-# Python's Prim (dctree.py lines 401-438) ported exactly to R
-get_mst_edges <- function(dist_matrix) { ... }
-```
+`igraph::mst` breaks equal-weight edges differently than Python's Prim.
+Fixed by porting Python's exact `_get_mst_edges()` (dctree.py lines 401-438).
 
-### 3. Cross-Language K-Means Non-Determinism
-`set.seed(42)` in R and `random_state=42` in Python use different random number generators (different Mersenne Twister implementations), producing different K-Means partitions. For exact numerical comparison, Python's labels were exported as CSV and loaded in R:
+### Bug 3 - K-Means Cross-Language Non-Determinism
+
+R and Python RNGs produce different K-Means partitions from the same seed.
+Fixed by exporting Python labels as CSV and loading in R:
 
 ```python
-# Python — export labels
+# Python
 pd.DataFrame({"km_label": km.labels_}).to_csv("python_km_labels.csv", index=False)
 ```
 ```r
-# R — load Python labels
+# R
 km_labels <- as.integer(read.csv("python_km_labels.csv")$km_label)
 ```
 
-After all three fixes, R and Python produce **identical DISCO scores to 10 decimal places**:
+After all fixes, R and Python produce **identical scores to 10 decimal places**:
+```
+DISCO - DBSCAN  : 0.6900921813  (R == Python)
+DISCO - K-Means : 0.0270091908  (R == Python)
+```
 
-```
-DISCO — DBSCAN  : 0.6900921813  ✅
-DISCO — K-Means : 0.0270091908  ✅
-```
+---
+
+## Experimental Results
+
+Six benchmark datasets validated. All differences are within machine epsilon (< 1e-14).
+
+| Dataset | n | Clusters | DBSCAN | K-Means | Match |
+|---|---|---|---|---|---|
+| Concentric Circles | 300 | 2 | 0.6900921813 | 0.0270091908 | R == Python |
+| Two Moons | 300 | 2 | 0.7012281111 | 0.2230356624 | R == Python |
+| Complex9 | 3031 | 9 | 0.4209464514 | 0.0551096775 | R == Python |
+| Complex8 | 2551 | 8 | 0.0718687652 | 0.0122574749 | R == Python |
+| Dartboard1 | 1000 | 4 | 0.8743426861 | -0.0033636711 | R == Python |
+| 3-Spiral | 312 | 3 | 0.5836514046 | -0.0014176359 | R == Python |
+
+> **Note:** Negative K-Means scores on Dartboard1 and 3-Spiral are correct and
+> expected — DISCO penalises algorithms that cut through ring or spiral structures.
 
 ---
 
@@ -281,19 +255,22 @@ DISCO — K-Means : 0.0270091908  ✅
 ```
 Disco-R/
 ├── R/
-│   ├── disco.R       ← Main user-facing functions
-│   │                    disco_score(), disco_samples(),
-│   │                    p_cluster(), p_noise()
-│   ├── dctree.R      ← DC-distance computation (internal)
-│   │                    compute_dc_distances(), get_mst_edges(),
-│   │                    calculate_reachability_distance()
-│   └── utils.R       ← Helper functions
-│                        make_circles(), make_moons(),
-│                        plot_disco_scores(), compare_clusterings()
-├── sklearn-circle/
-│   ├── circles_data_points.csv   ← Shared dataset (R + Python)
-│   └── python_km_labels.csv      ← Python K-Means labels (for exact comparison)
+│   └── disco.R              <- All functions (single combined file)
+├── man/                     <- Auto-generated by devtools::document()
+├── docs/
+│   ├── algorithm.md         <- Mathematical foundations
+│   ├── 02_implementation.md <- Bug reports and fixes
+│   └── 03_experiments.md    <- Experimental results
+├── experiments/
+│   ├── sklearn-circle/      <- Concentric circles
+│   ├── moons/               <- Two moons
+│   ├── complex9/            <- Complex9 (9 clusters)
+│   ├── complex8/            <- Complex8 (8 clusters)
+│   ├── dartboard1/          <- Dartboard1 (4 rings)
+│   └── spiral3/             <- 3-Spiral
+├── data/                    <- .arff benchmark datasets
 ├── DESCRIPTION
+├── NAMESPACE                <- Auto-generated by devtools::document()
 ├── LICENSE
 └── README.md
 ```
@@ -302,29 +279,27 @@ Disco-R/
 
 ## Results Interpretation
 
-| Score Range | Interpretation |
+| Score | Meaning |
 |---|---|
-| 0.7 – 1.0 | Excellent — well-separated, compact clusters |
-| 0.4 – 0.7 | Good — clear cluster structure |
-| 0.0 – 0.4 | Moderate — overlapping or touching clusters |
-| −0.3 – 0.0 | Poor — misassigned points |
-| −1.0 – −0.3 | Very poor — clustering worse than random |
+| 0.7 - 1.0 | Excellent - well-separated, compact clusters |
+| 0.4 - 0.7 | Good - clear cluster structure |
+| 0.0 - 0.4 | Moderate - overlapping clusters |
+| -0.3 - 0.0 | Poor - misassigned points |
+| -1.0 - -0.3 | Very poor - clustering worse than random |
 
-### Common Pitfalls
+### Common Pitfall
 
 ```r
-# ❌ WRONG: dbscan() uses 0 for noise
-labels <- dbscan(X, eps = 0.2)$cluster          # 0, 1, 2
+# WRONG: dbscan() uses 0 for noise
+labels <- dbscan(X, eps = 0.2)$cluster
 
-# ✅ CORRECT: DISCO uses -1 for noise
-labels <- dbscan(X, eps = 0.2)$cluster - 1      # -1, 0, 1
+# CORRECT: DISCO uses -1 for noise
+labels <- dbscan(X, eps = 0.2)$cluster - 1L
 ```
 
 ---
 
 ## Citation
-
-If you use this package, please cite the original paper:
 
 ```bibtex
 @article{beer2025disco,
@@ -346,10 +321,8 @@ R package. https://github.com/aminentezari/Disco-R
 
 ## License
 
-MIT © Amin Entezari
+MIT (c) Amin Entezari
 
 Original Python implementation by Beer, Krieger, Weber, Ritzert, Assent, Plant (2025).
 
----
-
-*For questions or issues: [amin_entezari@outlook.com](mailto:amin_entezari@outlook.com) · [Open an issue](https://github.com/aminentezari/Disco-R/issues)*
+*For questions: amin_entezari@outlook.com*
