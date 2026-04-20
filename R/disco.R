@@ -9,7 +9,7 @@
 #' @name disco-package
 #' @aliases disco
 #'
-#' @importFrom FNN get.knn
+# <- <- ' @importFrom FNN get.knn
 #' @importFrom stats dist
 NULL
 
