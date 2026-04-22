@@ -49,8 +49,8 @@ ignore noise. On non-convex data, they rank the wrong algorithm higher:
 
 | Algorithm | Silhouette | Davies-Bouldin | **DISCO** |
 |-----------|-----------|----------------|-----------|
-| DBSCAN (correct) | −0.16 ❌ | 2.8 (bad) ❌ | **0.68 ✅** |
-| K-Means (wrong)  | 0.37 ✅  | 0.6 (good) ✅ | **0.22 ❌** |
+| DBSCAN (correct) | −0.16 | 2.8 (bad) | **0.68 ** |
+| K-Means (wrong)  | 0.37  | 0.6 (good) | **0.22 ** |
 
 DISCO correctly identifies DBSCAN as better on non-convex data.
 
