@@ -1,9 +1,10 @@
 # DISCO: Density-based Internal Score for Clustering Outcomes
-## Complete Algorithm & Implementation Guide
+## Algorithm and Implementation Guide
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
+
 1. [Overview](#overview)
 2. [The Problem DISCO Solves](#the-problem)
 3. [Core Concepts](#core-concepts)
@@ -16,945 +17,392 @@
 
 ---
 
-## 1. Overview {#overview}
+## 1. Overview
 
-**DISCO** is a **Cluster Validity Index (CVI)** that evaluates the quality of density-based clustering results **without needing ground truth labels**.
+**DISCO** is a **Cluster Validity Index (CVI)** that evaluates the quality of
+density-based clustering results **without needing ground truth labels**.
 
-### Key Innovation
+### Key Properties
+
 Unlike traditional CVIs (like Silhouette Coefficient), DISCO:
-- ✅ Handles **arbitrary-shaped clusters** (not just spherical)
-- ✅ Evaluates **noise point quality** explicitly
-- ✅ Uses **density-connectivity distance** instead of Euclidean distance
-- ✅ Returns scores between **-1 (worst)** and **1 (best)**
+- Handles **arbitrary-shaped clusters** (not just spherical)
+- Evaluates **noise point quality** explicitly
+- Uses **density-connectivity distance** instead of Euclidean distance
+- Returns scores between **-1 (worst)** and **1 (best)**
 
 ### Paper Reference
+
 - **Authors**: Beer, Krieger, Weber, Ritzert, Assent, Plant (2025)
-- **Title**: "DISCO: Internal Evaluation of Density-Based Clustering"
-- **ArXiv**: 2503.00127v1
+- **Title**: DISCO: Internal Evaluation of Density-Based Clustering
+- **arXiv**: 2503.00127
 
 ---
 
-## 2. The Problem DISCO Solves {#the-problem}
+## 2. The Problem DISCO Solves
 
 ### Traditional CVI Limitations
 
 **Problem 1: Shape Assumption**
-```
-Traditional CVIs (Silhouette, Davies-Bouldin) assume:
-- Clusters are convex (spherical/elliptical)
-- Distance = Euclidean
 
-Example: Two Moons Dataset
-┌─────────────────────────────┐
-│    ●●●●●                    │  ← Two crescent shapes
-│  ●●    ●●                   │     (density-connected)
-│ ●        ●     ●●●●●        │
-│●          ●  ●●    ●●       │
-│●          ● ●        ●      │
-│ ●        ●●          ●      │
-│  ●●    ●●  ●        ●       │
-│    ●●●●     ●●    ●●        │
-│              ●●●●●          │
-└─────────────────────────────┘
-
-k-Means would cut through the moons → BAD
-Silhouette would rate k-Means HIGHER than DBSCAN!
-```
+Traditional CVIs (Silhouette, Davies-Bouldin) assume clusters are convex
+(spherical/elliptical) and use Euclidean distance. On non-convex data such
+as two moons or concentric circles, K-Means produces a better Silhouette
+score than DBSCAN even though DBSCAN is correct.
 
 **Problem 2: Noise Handling**
-```
-Existing CVIs:
-- Ignore noise points → Can't evaluate noise quality
-- Treat noise as cluster → Artificially lowers score
-- Filter noise → Misses the point of density-based clustering
-```
+
+Existing CVIs either ignore noise points, treat them as a cluster, or filter
+them out — none explicitly evaluates whether the noise labels are correct.
 
 ### DISCO's Solution
 
-```
 DISCO uses:
-1. Density-Connectivity Distance (dc-distance)
-   → Captures density-based cluster structure
-   
-2. Explicit Noise Evaluation
-   → p_sparse: Is noise in sparse regions?
-   → p_far: Is noise far from clusters?
-```
+1. **Density-Connectivity Distance (dc-distance)** — captures density-based
+   cluster structure rather than Euclidean geometry
+2. **Explicit Noise Evaluation** — p_sparse checks if noise is in sparse
+   regions; p_far checks if noise is remote from clusters
 
 ---
 
-## 3. Core Concepts {#core-concepts}
+## 3. Core Concepts
 
 ### 3.1 Core Distance
 
-**Definition**: Distance to the k-th nearest neighbor
+**Definition**: Distance to the k-th nearest neighbor.
 
-```
-For point x with parameter µ (min_points):
-κ(x) = distance to µ-th nearest neighbor
+For point x with parameter mu (min_points):
 
-Visual:
-        x₃
-       /
-      /  x₂
-     /  /
-    / x₁     ← These are k-nearest neighbors
-   x ←────────── Core distance = distance to x_µ
-    \
-     \
-      x₄...xₙ
-      
-Low core distance  → Dense region
-High core distance → Sparse region
-```
+    k(x) = distance to (mu-1)-th nearest neighbor
 
-**Formula**:
-```
-κ(x) = d_euclidean(x, x_µ)
-```
+Low core distance indicates a dense region. High core distance indicates
+a sparse region.
 
----
+### 3.2 Mutual Reachability Distance
 
-### 3.2 Mutual Reachability Distance (MRD)
+**Purpose**: Smooth out density variations between points.
 
-**Purpose**: Smooth out density variations
+    dm(x, y) = max(k(x), k(y), d_euclidean(x, y))
 
-```
-Between points x and y:
-dm(x, y) = max(κ(x), κ(y), d_euclidean(x, y))
-
-Intuition:
-- If x or y is in sparse area → large dm
-- Both must be dense for small dm
-- "Mutual" = considers both points' density
-```
-
-**Example**:
-```
-Dense cluster:  ●●●●x●●●●
-                      ↓ κ(x) = 0.1
-                      
-Sparse point:   y           κ(y) = 2.5
-                ↓
-                
-d_euclidean(x,y) = 3.0
-
-dm(x, y) = max(0.1, 2.5, 3.0) = 3.0
-```
-
----
+If either x or y is in a sparse area, the mutual reachability distance is
+large. Both points must be in dense regions for the distance to be small.
 
 ### 3.3 Density-Connectivity Distance (dc-distance)
 
-**Key Idea**: Minimax path distance through dense regions
+**Key idea**: Minimax path distance through dense regions.
 
-```
 Steps:
 1. Build complete graph with dm as edge weights
 2. Compute Minimum Spanning Tree (MST)
-3. dc-distance = maximum edge weight on unique path
+3. dc-distance = maximum edge weight on the unique path in the MST
 
-Visual Example:
-    a ─0.5─ b ─0.3─ c
-    │       │       │
-   0.8     0.4     0.6
-    │       │       │
-    d ─0.7─ e ─0.9─ f
-
-MST keeps lightest edges maintaining connectivity:
-    a ─0.5─ b ─0.3─ c
-            │       │
-           0.4     0.6
-            │       │
-            e ─────┘ f
-            │
-           0.7
-            │
-            d
-
-dc(a, f) = max(0.5, 0.4, 0.6) = 0.6
-         (path: a→b→e→c→f, max edge = 0.6)
-```
-
-**Why This Works**:
-- Path through **dense regions** → small maximum edge
-- Path must cross **sparse gap** → large maximum edge
-- Captures **density-connectivity** structure
+A path through dense regions has a small maximum edge. A path that must
+cross a sparse gap has a large maximum edge, which captures the
+density-connectivity structure.
 
 ---
 
-## 4. Mathematical Foundation {#mathematical-foundation}
+## 4. Mathematical Foundation
 
-### 4.1 DISCO Score for Cluster Points: ρ_cluster(x)
+### 4.1 DISCO Score for Cluster Points
 
-**Similar to Silhouette Coefficient, but with dc-distance**
-
-```
 For point x in cluster C_x:
 
-a = average dc-distance to other points in C_x (compactness)
-b = average dc-distance to nearest other cluster (separation)
+    a = average dc-distance to other points in C_x  (compactness)
+    b = average dc-distance to nearest other cluster (separation)
 
-         b - a
-ρ(x) = ─────────
-       max(a, b)
+    p(x) = (b - a) / max(a, b)    in [-1, 1]
 
-Range: [-1, 1]
-- ρ = +1: Perfect (b >> a, well-separated)
-- ρ =  0: Overlapping (a ≈ b)
-- ρ = -1: Wrong cluster (a >> b, should be in other cluster)
-```
+- p = +1: Point is well inside its cluster, far from others
+- p =  0: Point is on the boundary between clusters
+- p = -1: Point is closer to another cluster than its own
 
-**Example**:
-```
-Cluster 1: ●●●●●x●●●●  Cluster 2: ■■■■■■■
-           ↑              (far away)
-          point x
+### 4.2 DISCO Score for Noise Points
 
-a = avg dc-dist within cluster 1 = 0.2
-b = avg dc-dist to cluster 2     = 0.8
+Two conditions must be satisfied for a noise point to be correctly labelled.
 
-ρ(x) = (0.8 - 0.2) / 0.8 = 0.75 ← Good clustering!
-```
+**Condition 1: p_sparse (Sparseness)**
 
----
+Is the noise point in a region sparser than the clusters?
 
-### 4.2 DISCO Score for Noise Points: ρ_noise(x_n)
+Let k_max(C) = max core distance in cluster C (the cluster's density threshold).
 
-**Two conditions for good noise**:
+    p_sparse(x_n) = min over all C of:
+        (k(x_n) - k_max(C)) / max(k(x_n), k_max(C))
 
-#### Condition 1: p_sparse (Sparseness)
-```
-Is the noise point in a sparse region?
+High p_sparse means x_n is sparser than all clusters (good noise label).
+Negative p_sparse means x_n is denser than a cluster (bad noise label).
 
-For noise point x_n:
-κ(C) = max core distance in cluster C (density threshold)
+**Condition 2: p_far (Remoteness)**
 
-         κ(x_n) - κ(C)
-p_sparse = ────────────────
-           max(κ(x_n), κ(C))
+Is the noise point far from all clusters in dc-distance?
 
-Take minimum over all clusters:
-p_sparse(x_n) = min over all C
+Let d_min(x_n, C) = minimum dc-distance from x_n to any point in C.
 
-High p_sparse → x_n is indeed sparse (good noise label)
-Low p_sparse  → x_n is dense (bad noise label)
-```
+    p_far(x_n) = min over all C of:
+        (d_min(x_n, C) - k_max(C)) / max(d_min(x_n, C), k_max(C))
 
-**Visual**:
-```
-Cluster C: ●●●●●●●
-           κ(C) = 0.3 (max core distance in cluster)
-           
-Noise point far away: n₁        κ(n₁) = 2.0
-                      
-p_sparse(n₁) = (2.0 - 0.3) / 2.0 = 0.85 ✅ Good!
+**Combined noise score**:
 
-Noise in dense area:  n₂ (among cluster points)
-                      κ(n₂) = 0.2
-                      
-p_sparse(n₂) = (0.2 - 0.3) / 0.3 = -0.33 ❌ Bad! Should be cluster point!
-```
+    p(x_n) = min(p_sparse(x_n), p_far(x_n))
 
----
-
-#### Condition 2: p_far (Remoteness)
-```
-Is the noise point far from all clusters?
-
-For noise point x_n and cluster C:
-d_min = minimum dc-distance from x_n to any point in C
-κ(C)  = cluster's density threshold
-
-       d_min - κ(C)
-p_far = ───────────────
-        max(d_min, κ(C))
-
-Take minimum over all clusters:
-p_far(x_n) = min over all C
-
-High p_far → x_n is far from clusters (good)
-Low p_far  → x_n is close to cluster (should be included)
-```
-
-**Combined Noise Score**:
-```
-ρ_noise(x_n) = min(p_sparse(x_n), p_far(x_n))
-
-Both conditions must be satisfied for good noise label!
-```
-
----
+Both conditions must be satisfied simultaneously.
 
 ### 4.3 Overall DISCO Score
 
-```
-             1
-DISCO = ───────── Σ ρ(x_i)
-           n    i=1
+    DISCO = (1/n) * sum of p(x_i) for all i
 
-Where ρ(x_i) = { ρ_cluster(x_i)  if x_i is cluster point
-               { ρ_noise(x_i)    if x_i is noise point
-```
+    where p(x_i) = p_cluster(x_i)  if x_i is a cluster point
+                 = p_noise(x_i)    if x_i is a noise point
 
 ---
 
-## 5. Algorithm Workflow {#algorithm-workflow}
+## 5. Algorithm Workflow
 
-### Main Algorithm: `disco_score(X, labels, min_points)`
+### Main Algorithm: disco_score(X, labels, min_points)
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ INPUT:                                                     │
-│   X          : n × d data matrix                          │
-│   labels     : n-dimensional vector (cluster IDs + noise) │
-│   min_points : parameter µ for density computation        │
-│                                                            │
-│ OUTPUT:                                                    │
-│   score      : Single number in [-1, 1]                   │
-└────────────────────────────────────────────────────────────┘
+**Input:**
+- X: n x d data matrix
+- labels: n-dimensional vector (cluster IDs, -1 for noise)
+- min_points: parameter mu for density computation
 
-STEP 1: Handle Edge Cases
-─────────────────────────
-if only noise:
-    return -1 for all points
-    
-if one cluster (no noise):
-    return 0 for all points  (no separation to measure)
-    
-if one cluster + noise:
-    → Special case (see below)
-    
-STEP 2: Compute DC-Distances
-──────────────────────────────
-dc_dists ← compute_dc_distances(X, min_points)
-│
-├─ Step 2a: Compute core distances
-│   κ(x) ← distance to µ-th nearest neighbor for all x
-│
-├─ Step 2b: Compute mutual reachability distances
-│   dm(x,y) ← max(κ(x), κ(y), d_euclidean(x,y)) for all pairs
-│
-├─ Step 2c: Build Minimum Spanning Tree
-│   MST ← Prim's algorithm on dm graph
-│
-└─ Step 2d: Extract dc-distances
-    dc(x,y) ← max edge weight on path from x to y in MST
+**Output:** Single number in [-1, 1]
 
-STEP 3: Compute Scores for Cluster Points
-───────────────────────────────────────────
-for each cluster point x:
-    cluster_scores[x] ← p_cluster(x, labels, dc_dists)
-    │
-    ├─ a ← avg dc-dist to same cluster
-    ├─ b ← avg dc-dist to nearest other cluster
-    └─ score ← (b - a) / max(a, b)
+**Steps:**
 
-STEP 4: Compute Scores for Noise Points
-─────────────────────────────────────────
-for each noise point x_n:
-    (p_sparse, p_far) ← p_noise(x_n, labels, dc_dists)
-    │
-    ├─ p_sparse: Compare κ(x_n) with max κ in clusters
-    ├─ p_far: Compare min dc-dist to clusters
-    └─ noise_scores[x_n] ← min(p_sparse, p_far)
+1. Handle edge cases:
+   - All noise: return -1 for all points
+   - Single cluster, no noise: return 0 for all points
 
-STEP 5: Aggregate
-──────────────────
-DISCO ← mean(all scores)
+2. Compute DC-distances:
+   - Core distances via FNN::get.knn with k = min_points - 1
+   - Mutual reachability distances: element-wise max
+   - MST via Prim's algorithm (exact port from Python)
+   - Extract dc-distances via BFS minimax path traversal
 
-return DISCO
-```
+3. Score cluster points via p_cluster
+
+4. Score noise points via p_noise
+
+5. Return mean of all scores
+
+### Time and Space Complexity
+
+- Time: O(n^3) — dominated by dc-distance extraction
+- Space: O(n^2) — for the distance matrices
 
 ---
 
-### Detailed Sub-Algorithm: `compute_dc_distances(X, min_points)`
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ PURPOSE: Compute density-connectivity distance matrix  │
-└─────────────────────────────────────────────────────────┘
-
-INPUT: X (n × d matrix), µ (min_points)
-OUTPUT: dc_dists (n × n matrix)
-
-ALGORITHM:
-──────────
-
-1. COMPUTE CORE DISTANCES
-   ┌─────────────────────────────────────┐
-   │ for i = 1 to n:                    │
-   │   neighbors ← k-NN(X[i], k=µ)      │
-   │   κ[i] ← distance to µ-th neighbor │
-   └─────────────────────────────────────┘
-   
-   Implementation: Use FNN::get.knn()
-   Time: O(n log n) with KD-tree
-
-2. COMPUTE MUTUAL REACHABILITY DISTANCE
-   ┌─────────────────────────────────────────────┐
-   │ dm ← n × n matrix                           │
-   │ for i = 1 to n:                            │
-   │   for j = 1 to n:                          │
-   │     if i ≠ j:                              │
-   │       d_eucl ← ||X[i] - X[j]||₂           │
-   │       dm[i,j] ← max(κ[i], κ[j], d_eucl)   │
-   └─────────────────────────────────────────────┘
-   
-   Time: O(n²)
-
-3. COMPUTE MINIMUM SPANNING TREE
-   ┌──────────────────────────────────────────┐
-   │ Create weighted graph G from dm         │
-   │ MST ← Prim's algorithm on G              │
-   └──────────────────────────────────────────┘
-   
-   Implementation: get_mst_edges() — exact port of Python's
-   _get_mst_edges() (dctree.py lines 401-438)
-   Time: O(n² log n)
-
-4. EXTRACT DC-DISTANCES FROM MST
-   ┌────────────────────────────────────────────┐
-   │ dc_dists ← n × n matrix                    │
-   │ for i = 1 to n:                           │
-   │   for j = 1 to n:                         │
-   │     path ← unique path from i to j in MST │
-   │     dc_dists[i,j] ← max edge on path      │
-   └────────────────────────────────────────────┘
-   
-   Implementation: extract_dc_distances_from_mst() — BFS minimax
-   path traversal over MST adjacency list
-   Time: O(n³) naive, O(n²) optimized
-
-TOTAL TIME COMPLEXITY: O(n³)
-SPACE COMPLEXITY: O(n²)
-```
-
----
-
-## 6. Implementation Structure {#implementation-structure}
+## 6. Implementation Structure
 
 ### File Organization
 
-```
-Disco-R/
-├── R/
-│   ├── disco.R       ← All algorithm functions (DC-distance + scoring)
-│   │                    disco_score(), disco_samples(),
-│   │                    p_cluster(), p_noise(),
-│   │                    compute_dc_distances(), get_mst_edges(),
-│   │                    calculate_reachability_distance()
-│   └── utils.R       ← Helper functions
-├── man/              ← Documentation (auto-generated)
-├── examples/
-│   └── Test_code.R   ← Test script
-├── DESCRIPTION       ← Package metadata
-├── NAMESPACE         ← Exported functions
-└── README.md         ← Package documentation
-```
+    discoCVI/
+    |-- R/
+    |   |-- disco.R       <- All functions (DC-distance + scoring + utilities)
+    |-- man/              <- Documentation (auto-generated by devtools::document)
+    |-- DESCRIPTION       <- Package metadata
+    |-- NAMESPACE         <- Exported functions
+    |-- LICENSE
+    |-- README.md
+
+All functions are combined in a single file `R/disco.R` with three logical
+sections: DC-distance infrastructure, DISCO scoring functions, and utilities.
 
 ---
 
-## 7. Function Descriptions {#function-descriptions}
+## 7. Function Descriptions
 
-### 7.1 Main Functions (disco.R)
+### Core Scoring Functions
 
-#### `disco_score(X, labels, min_points = 5)`
-```r
-Purpose: Compute mean DISCO score for entire clustering
-Input:
-  - X: n×d data matrix
-  - labels: cluster labels (use -1 for noise)
-  - min_points: parameter µ (default 5)
-Output: Single score in [-1, 1]
+#### disco_score(X, labels, min_points = 5)
 
-Example:
-  data <- make_moons(n_samples = 300)
-  db <- dbscan(data$X, eps = 0.2, minPts = 5)
-  score <- disco_score(data$X, db$cluster - 1)
-  # score = 0.684 (good!)
-```
+Returns the mean DISCO score for the entire clustering.
 
-#### `disco_samples(X, labels, min_points = 5)`
-```r
-Purpose: Compute pointwise DISCO scores
-Input: Same as disco_score
-Output: Vector of n scores (one per point)
+    Input:  X (n x d matrix), labels (integer vector), min_points (integer)
+    Output: Single numeric in [-1, 1]
 
-Use case: Identify problematic points
-  scores <- disco_samples(X, labels)
-  bad_points <- which(scores < 0.3)
-```
+#### disco_samples(X, labels, min_points = 5)
 
-#### `p_cluster(X, labels, min_points, precomputed_dc_dists)`
-```r
-Purpose: Silhouette-like score using dc-distance
-Input:
-  - X: Data or dc-distance matrix
-  - labels: Cluster labels (-1 treated as cluster!)
-  - precomputed_dc_dists: TRUE if X is dc-distance matrix
-Output: Vector of scores
+Returns per-point DISCO scores. Useful for identifying problematic points.
 
-Note: This is internal, called by disco_samples
-```
+    Output: Numeric vector of length n
 
-#### `p_noise(X, labels, min_points, dc_dists)`
-```r
-Purpose: Evaluate noise point quality
-Input:
-  - X: Data matrix
-  - labels: Labels with -1 for noise
-  - dc_dists: Optional precomputed dc-distances
-Output: List with p_sparse and p_far vectors
+#### p_cluster(X, labels, min_points, precomputed_dc_dists)
 
-Returns:
-  list(
-    p_sparse = c(0.85, 0.92, ...),  # Sparseness scores
-    p_far    = c(0.78, 0.81, ...)   # Remoteness scores
-  )
-```
+Silhouette-style score using dc-distances. Note: -1 is treated as a valid
+cluster label here, not as noise.
 
----
+#### p_noise(X, labels, min_points, dc_dists)
 
-### 7.2 DC-Distance Functions (disco.R)
+Evaluates noise point quality. Returns list(p_sparse, p_far).
 
-#### `compute_dc_distances(X, min_points = 5)`
-```r
-Purpose: Main function to compute dc-distance matrix
-Algorithm:
-  1. Core distances → FNN::get.knn() with k = min_points - 1
-  2. Mutual reachability distance → element-wise max
-  3. MST → get_mst_edges() (exact port of Python's Prim)
-  4. Extract dc-distances → BFS minimax path traversal
+### DC-Distance Functions
 
-Output: n×n symmetric distance matrix
-```
+#### compute_dc_distances(X, min_points = 5)
 
-#### `calculate_reachability_distance(points, min_points)`
-```r
-Purpose: Compute n×n mutual-reachability distance matrix
-Note: min_points must be >= 2
-Implementation: Uses FNN::get.knn with k = min_points - 1
-                (matches Python's self-inclusive partition)
-Time: O(n²)
-```
+Main entry point for the DC-distance matrix. Calls the three sub-functions
+below in sequence.
 
-#### `get_mst_edges(dist_matrix)`
-```r
-Purpose: Minimum spanning tree via exact port of Python's Prim
-Note: Preserves same tie-breaking as Python's np.argmin
-      (critical for numerical equivalence)
-Output: data.frame with columns i, j, dist (n-1 edges)
-Time: O(n²)
-```
+    Output: n x n symmetric distance matrix
 
-#### `extract_dc_distances_from_mst(mst_edges, n)`
-```r
-Purpose: Compute minimax path distances from MST
-Method: BFS from every source node; propagates running
-        maximum edge weight along each tree path
-Input:  data.frame with columns i, j, dist + total n
-Output: n×n symmetric DC-distance matrix
-Time: O(n²)
-```
+#### calculate_reachability_distance(points, min_points)
+
+Computes the n x n mutual-reachability distance matrix. Uses
+FNN::get.knn with k = min_points - 1 (matches Python's self-inclusive
+np.partition behaviour).
+
+#### get_mst_edges(dist_matrix)
+
+Minimum spanning tree via exact port of Python's _get_mst_edges()
+(dctree.py lines 401-438). Preserves the same argmin tie-breaking.
+
+    Output: data.frame with columns i, j, dist (n-1 edges)
+
+#### extract_dc_distances_from_mst(mst_edges, n)
+
+BFS minimax path traversal over the MST. The dc-distance between two
+points equals the maximum edge weight on the unique path in the MST.
+
+    Output: n x n symmetric DC-distance matrix
+
+### Utility Functions
+
+#### make_moons(n_samples, noise, random_state)
+
+Generates two interleaving half-circles.
+
+#### make_circles(n_samples, noise, factor, random_state)
+
+Generates concentric circles.
+
+#### make_blobs(n_samples, centers, std, random_state)
+
+Generates Gaussian blobs.
+
+#### plot_disco_scores(X, labels, scores, main)
+
+Scatter plot with red-yellow-green colour scale for DISCO scores.
+
+#### compare_clusterings(X, clustering_list, min_points)
+
+Evaluates and ranks multiple clustering results. Returns a data frame
+sorted by DISCO score.
+
+#### summary_disco_scores(scores)
+
+Returns mean, median, min, max, SD, quantiles, n_negative, n_positive.
 
 ---
 
-### 7.3 Utility Functions (utils.R)
+## 8. Example Usage
 
-#### `make_moons(n_samples, noise, random_state)`
-```r
-Purpose: Generate two interleaving half-circles
-Parameters:
-  - n_samples: Total points (split between moons)
-  - noise: Gaussian noise std dev
-  - random_state: Seed for reproducibility
-  
-Output: list(X = matrix, labels = vector)
-
-Use: Test density-based clustering
-```
-
-#### `make_circles(n_samples, noise, factor, random_state)`
-```r
-Purpose: Generate concentric circles
-Parameters:
-  - factor: Inner/outer circle radius ratio
-  
-Use: Another non-convex test case
-```
-
-#### `plot_disco_scores(X, labels, scores, main)`
-```r
-Purpose: Visualize clustering with color-coded scores
-Features:
-  - Red = bad scores
-  - Yellow = moderate
-  - Green = good scores
-  - X symbol for noise
-```
-
-#### `compare_clusterings(X, clustering_list, min_points)`
-```r
-Purpose: Rank multiple clustering algorithms
-Input: Named list of labelings
-Output: Data frame sorted by DISCO score
-
-Example:
-  results <- compare_clusterings(X, list(
-    DBSCAN = db_labels,
-    KMeans = km_labels,
-    Hierarchical = hc_labels
-  ))
-```
-
-#### `summary_disco_scores(scores)`
-```r
-Purpose: Statistical summary of pointwise scores
-Output:
-  - Mean, median, min, max, sd
-  - Quartiles
-  - Count of negative/positive/near-zero scores
-```
-
----
-
-## 8. Example Usage {#example-usage}
-
-### Complete Workflow Example
+### Basic Workflow
 
 ```r
-# ============================================================
-# EXAMPLE: Comparing Clustering Algorithms
-# ============================================================
-
-library(disco)
+library(discoCVI)
 library(dbscan)
 
-# 1. GENERATE DATA
-# ────────────────
+# Generate data
 data <- make_moons(n_samples = 300, noise = 0.05, random_state = 42)
-X <- data$X
-y_true <- data$labels
+X    <- data$X
 
-# Visualize
-plot(X, col = y_true + 1, pch = 19, main = "Ground Truth")
+# Cluster
+db_labels <- dbscan(X, eps = 0.2, minPts = 5)$cluster - 1L
+km_labels <- kmeans(X, centers = 2, nstart = 10)$cluster - 1L
 
-# 2. APPLY CLUSTERING ALGORITHMS
-# ───────────────────────────────
+# Evaluate
+disco_score(X, db_labels)   # 0.701
+disco_score(X, km_labels)   # 0.223
 
-# DBSCAN (density-based)
-db <- dbscan(X, eps = 0.2, minPts = 5)
-labels_db <- db$cluster - 1  # Convert to 0-based
+# Per-point analysis
+scores <- disco_samples(X, db_labels)
+bad_points <- which(scores < 0)
 
-# k-Means (centroid-based)
-km <- kmeans(X, centers = 2, nstart = 20)
-labels_km <- km$cluster - 1
+# Compare algorithms
+compare_clusterings(X, list(DBSCAN = db_labels, KMeans = km_labels))
 
-# Hierarchical (distance-based)
-hc <- hclust(dist(X), method = "ward.D2")
-labels_hc <- cutree(hc, k = 2) - 1
-
-# 3. EVALUATE WITH DISCO
-# ───────────────────────
-
-disco_db <- disco_score(X, labels_db, min_points = 5)
-disco_km <- disco_score(X, labels_km, min_points = 5)
-disco_hc <- disco_score(X, labels_hc, min_points = 5)
-
-# Results:
-# DBSCAN:       0.684 ✅ Excellent
-# k-Means:      0.215 ❌ Poor (cuts through moons)
-# Hierarchical: 0.227 ❌ Poor (also cuts)
-
-# 4. VISUALIZE RESULTS
-# ────────────────────
-
-par(mfrow = c(1, 3))
-
-# DBSCAN
-plot(X, col = labels_db + 2, pch = 19,
-     main = sprintf("DBSCAN\nDISCO: %.3f", disco_db))
-
-# k-Means
-plot(X, col = labels_km + 2, pch = 19,
-     main = sprintf("k-Means\nDISCO: %.3f", disco_km))
-
-# Hierarchical
-plot(X, col = labels_hc + 2, pch = 19,
-     main = sprintf("Hierarchical\nDISCO: %.3f", disco_hc))
-
-# 5. POINTWISE ANALYSIS
-# ─────────────────────
-
-scores_db <- disco_samples(X, labels_db)
-
-# Plot with score colors
-par(mfrow = c(1, 1))
-plot_disco_scores(X, labels_db, scores_db, 
-                  main = "DBSCAN - Pointwise DISCO Scores")
-
-# Find problematic points
-problematic <- which(scores_db < 0.3)
-cat("Problematic points:", length(problematic), "\n")
-
-# Summary statistics
-summary_disco_scores(scores_db)
-# Output:
-# $mean:   0.684
-# $median: 0.692
-# $min:    0.467
-# $max:    0.700
+# Visualise
+plot_disco_scores(X, db_labels, scores)
 ```
 
----
+### Precomputing DC-Distances
 
-### Noise Evaluation Example
+When comparing multiple clusterings on the same data, precompute once:
 
 ```r
-# ============================================================
-# EXAMPLE: Evaluating Noise Detection
-# ============================================================
-
-# Generate data with noise
-set.seed(42)
-X_clean <- make_moons(n_samples = 200, noise = 0.05)$X
-X_noise <- matrix(runif(20 * 2, min = -1, max = 2), ncol = 2)
-X_combined <- rbind(X_clean, X_noise)
-
-# Apply DBSCAN
-db <- dbscan(X_combined, eps = 0.2, minPts = 5)
-labels <- db$cluster - 1
-
-# Count noise points
-n_noise <- sum(labels == -1)
-cat("Noise points detected:", n_noise, "\n")
-
-# Evaluate noise quality
-noise_results <- p_noise(X_combined, labels, min_points = 5)
-
-# Extract noise point scores
-noise_mask <- labels == -1
-p_sparse_vals <- noise_results$p_sparse
-p_far_vals <- noise_results$p_far
-
-# Analyze
-cat("\nNoise Quality:\n")
-cat("  p_sparse - mean:", mean(p_sparse_vals), "\n")
-cat("  p_far    - mean:", mean(p_far_vals), "\n")
-
-# High values = good noise labels
-# Low/negative = should be cluster points
-
-# Overall DISCO including noise
-disco_total <- disco_score(X_combined, labels)
-cat("\nOverall DISCO:", disco_total, "\n")
+D  <- compute_dc_distances(X, min_points = 5)
+s1 <- p_cluster(D, labels1, precomputed_dc_dists = TRUE)
+s2 <- p_cluster(D, labels2, precomputed_dc_dists = TRUE)
 ```
 
 ---
 
-## 9. Results Interpretation {#results-interpretation}
+## 9. Results Interpretation
 
 ### Score Ranges
 
-```
-┌─────────────────────────────────────────────────────┐
-│ DISCO Score Interpretation                          │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  1.0  ────────────────────  Perfect                │
-│         ↑                                           │
-│  0.7  ──┤─────────────────  Excellent              │
-│         │  Well-separated                           │
-│  0.4  ──┤─────────────────  Good                   │
-│         │  Clear structure                          │
-│  0.0  ──┤─────────────────  Moderate/Overlapping   │
-│         │  Clusters touch                           │
-│ -0.3  ──┤─────────────────  Poor                   │
-│         │  Misassigned                              │
-│ -1.0  ──┴─────────────────  Very Poor              │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
----
+| Score | Quality | Meaning |
+|---|---|---|
+| 0.7 - 1.0 | Excellent | Well-separated, compact clusters |
+| 0.4 - 0.7 | Good | Clear cluster structure |
+| 0.0 - 0.4 | Moderate | Overlapping or touching clusters |
+| -0.3 - 0.0 | Poor | Misassigned points |
+| -1.0 - -0.3 | Very poor | Clustering actively harmful |
 
 ### Comparison with Other CVIs
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ Dataset: Two Moons (Non-convex, density-based clusters)   │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│ Method        │ Silhouette │ Davies-Bouldin │ DISCO       │
-│───────────────┼────────────┼────────────────┼─────────────│
-│ DBSCAN        │ -0.16 ❌   │  2.8 (bad) ❌  │  0.68 ✅    │
-│ (density)     │            │                │             │
-│───────────────┼────────────┼────────────────┼─────────────│
-│ k-Means       │  0.37 ✅   │  0.6 (good) ✅ │  0.22 ❌    │
-│ (centroid)    │            │                │             │
-└────────────────────────────────────────────────────────────┘
+On the Two Moons dataset:
 
-Observation:
-- Silhouette & Davies-Bouldin prefer k-Means (WRONG!)
-- DISCO correctly identifies DBSCAN as better
-- Traditional CVIs fail on non-convex clusters
-```
+| Method | Silhouette | Davies-Bouldin | DISCO |
+|---|---|---|---|
+| DBSCAN (correct) | -0.16 | 2.8 (bad) | 0.68 |
+| K-Means (wrong) | 0.37 | 0.6 (good) | 0.22 |
 
----
+Silhouette and Davies-Bouldin prefer K-Means. DISCO correctly identifies
+DBSCAN as the better algorithm.
 
-### Practical Guidelines
+### When to Use DISCO
 
-#### When to Use DISCO
-
-✅ **Use DISCO when:**
+Use DISCO when:
 - Clusters have arbitrary shapes
 - Using density-based algorithms (DBSCAN, HDBSCAN, OPTICS)
-- Noise points are important
-- Need to compare different clustering approaches
-- Hyperparameter tuning (eps, minPts)
+- Noise points are present and their quality matters
+- Comparing different clustering approaches
+- Tuning hyperparameters (eps, minPts)
 
-❌ **Don't use DISCO when:**
-- Clusters are clearly convex (k-Means is fine, use Silhouette)
-- No noise in data
-- Need very fast computation (DISCO is O(n³))
+Do not use DISCO when:
+- Clusters are clearly convex (use Silhouette instead)
+- Very large datasets (n > 5000) where O(n^3) is prohibitive
 
----
+### min_points Parameter
 
-#### Hyperparameter Selection
+The default value of 5 works well for most datasets.
 
-**`min_points` (µ) parameter:**
-```
-Typical values: 5-10
+- Small values (2-3): sensitive to noise, may fragment clusters
+- Large values (10-20): smoother scores, may miss small clusters
+- Rule of thumb: use min_points = max(5, log(n))
 
-- Too small (µ=2,3): Sensitive to noise, many small clusters
-- Too large (µ>20): May miss small but valid clusters
-- Rule of thumb: µ = 5 is good default
-- For very small datasets: µ = 3 or 4
-- For very large datasets: µ = 10-15
-```
+### Common Pitfall
 
-**Effect on scores:**
-```
-Higher µ → Smoother core distances → More stable scores
-Lower µ  → Captures finer density variations
-```
-
----
-
-### Common Pitfalls
-
-#### Pitfall 1: Wrong Label Convention
 ```r
-# ❌ WRONG: dbscan returns 0 for noise
-labels <- dbscan(X, eps=0.2)$cluster  
-# → 0, 1, 2 (0 = noise)
+# WRONG: dbscan() uses 0 for noise
+labels <- dbscan(X, eps = 0.2)$cluster
 
-# ✅ CORRECT: Convert to -1 for noise
-labels <- dbscan(X, eps=0.2)$cluster - 1
-# → -1, 0, 1 (-1 = noise)
-
-disco_score(X, labels)  # Now works!
+# CORRECT: DISCO uses -1 for noise
+labels <- dbscan(X, eps = 0.2)$cluster - 1L
 ```
-
-#### Pitfall 2: No Noise but Using -1
-```r
-# k-Means doesn't produce noise
-labels_km <- kmeans(X, 3)$cluster - 1
-# → 0, 1, 2 (all cluster points)
-
-# This is fine! DISCO handles it
-disco_score(X, labels_km)  # Works
-```
-
-#### Pitfall 3: Only Noise Points
-```r
-# If DBSCAN finds no clusters
-db <- dbscan(X, eps=0.01, minPts=100)  # Too strict
-all(db$cluster == 0)  # TRUE
-
-labels <- db$cluster - 1  # All -1
-
-disco_score(X, labels)  # Returns -1 (correct!)
-```
-
----
-
-### Debugging Low Scores
-
-```
-If DISCO score is unexpectedly low:
-
-1. Check label range
-   ✓ Noise should be -1
-   ✓ Clusters should be 0, 1, 2, ...
-
-2. Visualize the clustering
-   plot(X, col = labels + 2, pch = 19)
-   
-3. Check pointwise scores
-   scores <- disco_samples(X, labels)
-   hist(scores)
-   
-4. Identify problematic points
-   bad_idx <- which(scores < 0)
-   plot(X, col = "gray", pch = 19)
-   points(X[bad_idx, ], col = "red", pch = 19, cex = 2)
-
-5. Try different min_points
-   for (µ in c(3, 5, 7, 10)) {
-     score <- disco_score(X, labels, min_points = µ)
-     cat("µ =", µ, "→ DISCO =", score, "\n")
-   }
-```
-
----
-
-## Summary
-
-### What DISCO Does
-
-1. **Evaluates density-based clusterings** using density-connectivity
-2. **Scores cluster quality** via compactness & separation
-3. **Explicitly evaluates noise** via sparseness & remoteness
-4. **Returns interpretable scores** in [-1, 1] range
-5. **Works on arbitrary shapes** unlike traditional CVIs
-
-### Key Strengths
-
-- ✅ Handles non-convex clusters
-- ✅ Evaluates noise quality
-- ✅ Based on solid mathematical foundation
-- ✅ Comparable to Silhouette for convex cases
-- ✅ Deterministic and reproducible
-
-### Key Limitations
-
-- ⚠️ O(n³) time complexity (slow for large n)
-- ⚠️ Requires tuning min_points parameter
-- ⚠️ Not suitable for very high dimensions (curse of dimensionality)
 
 ---
 
 ## References
 
-1. **Original Paper**
-   - Beer, A., Krieger, L., Weber, P., Ritzert, M., Assent, I., Plant, C. (2025)
-   - "DISCO: Internal Evaluation of Density-Based Clustering"
-   - arXiv:2503.00127v1 [cs.LG]
+1. Beer, A., Krieger, L., Weber, P., Ritzert, M., Assent, I., Plant, C. (2025).
+   DISCO: Internal Evaluation of Density-Based Clustering. arXiv:2503.00127.
 
-2. **Related Methods**
-   - DBCV: Moulavi et al. (2014) - Density-Based Cluster Validation
-   - Silhouette: Rousseeuw (1987) - Original silhouette coefficient
-   - DBSCAN: Ester et al. (1996) - Density-based clustering
+2. Rousseeuw, P.J. (1987). Silhouettes: A graphical aid to the interpretation
+   and validation of cluster analysis. Journal of Computational and Applied
+   Mathematics, 20, 53-65.
 
-3. **R Implementation**
-   - Package: `disco`
-   - GitHub: https://github.com/aminentezari/Disco-R
-   - Authors: Amin Entezari (R translation), Beer et al. (original Python)
-
----
-
-**END OF DOCUMENTATION**
-
-For questions or issues, contact: amin_entezari@outlook.com
+3. Ester, M., Kriegel, H.P., Sander, J., Xu, X. (1996). A density-based
+   algorithm for discovering clusters in large spatial databases with noise.
+   Proceedings of KDD, 226-231.
