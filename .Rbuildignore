@@ -1,3 +1,9 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
+^experiments$
+^docs$
+^report\.pdf$
+^\.ipynb_checkpoints$
+^Disco-R\.Rproj$
+^\.DS_Store$
