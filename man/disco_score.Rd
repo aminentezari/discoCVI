@@ -2,53 +2,32 @@
 % Please edit documentation in R/disco.R
 \name{disco_score}
 \alias{disco_score}
-\title{Compute the mean DISCO score of all samples}
+\title{Overall DISCO score}
 \usage{
 disco_score(X, labels, min_points = 5)
 }
 \arguments{
-\item{X}{A numeric matrix or data.frame where rows are samples and columns 
-are features.}
+\item{X}{A numeric matrix (\eqn{n \times p}) or \code{data.frame}.}
 
-\item{labels}{Integer vector of cluster labels. Use -1 for noise points.}
+\item{labels}{An integer vector of cluster labels (\code{-1} for noise).}
 
-\item{min_points}{Integer, minimum number of points for dc-distance 
-calculation. Default is 5.}
+\item{min_points}{Positive integer; core-distance neighbourhood size.
+Default is \code{5}.}
 }
 \value{
-A numeric value between -1 and 1. Higher values indicate better 
-  clustering. The best value is 1, the worst is -1. Values near 0 indicate 
-  overlapping clusters.
+A single numeric value in \eqn{[-1, 1]}.
 }
 \description{
-The DISCO score measures how well samples are clustered with similar samples.
-It evaluates both cluster quality (compactness and separation) and noise 
-label quality (sparseness and remoteness from clusters).
-}
-\details{
-DISCO evaluates clustering using density-connectivity distance (dc-distance).
-For cluster points, it computes a silhouette-like score. For noise points,
-it evaluates whether they are in sparse regions (p_sparse) and far from 
-clusters (p_far).
+Returns the mean of the per-sample DISCO scores produced by
+\code{\link{disco_samples}}.  This is the single-number summary of
+clustering quality used for model selection and comparison.
 }
 \examples{
-\dontrun{
-# Generate synthetic data
-library(dbscan)
-data <- make_moons(n_samples = 300, noise = 0.05)
-X <- data$X
-
-# Apply DBSCAN
-db <- dbscan(X, eps = 0.2, minPts = 5)
-labels <- db$cluster - 1
-labels[labels == 0] <- -1  # Convert 0 to -1 for noise
-
-# Calculate DISCO score
-score <- disco_score(X, labels)
-print(score)
-}
-
+set.seed(42)
+X <- matrix(rnorm(100), ncol = 2)
+labels <- rep(c(0L, 1L), each = 25)
+disco_score(X, labels)
 }
 \seealso{
-\code{\link{disco_samples}}, \code{\link{p_cluster}}, \code{\link{p_noise}}
+\code{\link{disco_samples}}
 }

@@ -2,27 +2,47 @@
 % Please edit documentation in R/disco.R
 \name{p_cluster}
 \alias{p_cluster}
-\title{Compute p_cluster score for cluster points}
+\title{Silhouette-like cluster scores using DC distances}
 \usage{
 p_cluster(X, labels, min_points = 5, precomputed_dc_dists = FALSE)
 }
 \arguments{
-\item{X}{Either a numeric matrix/data.frame of features, or a distance matrix 
-if precomputed_dc_dists=TRUE}
+\item{X}{Either (a) a numeric matrix of raw data (\eqn{n \times p}) when
+\code{precomputed_dc_dists = FALSE}, or (b) a precomputed \eqn{n \times n}
+DC-distance matrix when \code{precomputed_dc_dists = TRUE}.}
 
-\item{labels}{Integer vector of cluster labels}
+\item{labels}{An integer vector of cluster labels of length \eqn{n}.
+Noise labels (\code{-1}) should not be present; pass only the non-noise
+subset.}
 
-\item{min_points}{Integer, minimum number of points for dc-distance. Default is 5.}
+\item{min_points}{Positive integer; used only when
+\code{precomputed_dc_dists = FALSE}.  Default is \code{5}.}
 
-\item{precomputed_dc_dists}{Logical, whether X is already a dc-distance matrix. 
-Default is FALSE.}
+\item{precomputed_dc_dists}{Logical.  If \code{TRUE}, \code{X} is treated
+as an already-computed DC-distance matrix; no further distances are
+computed.  Default is \code{FALSE}.}
 }
 \value{
-A numeric vector of p_cluster scores for each sample
+A numeric vector of length \eqn{n} with per-point silhouette-style
+  scores in \eqn{[-1, 1]}.
 }
 \description{
-p_cluster is similar to the Silhouette Coefficient but uses dc-distance metric.
-It evaluates cluster compactness and separation.
-
-Note: -1 is NOT handled as noise here, but as a valid cluster label!
+Computes a silhouette coefficient for each non-noise point using the
+precomputed (or internally derived) DC-distance matrix rather than raw
+Euclidean distances.  This matches the formula used by
+\code{sklearn.metrics.silhouette_samples} with \code{metric="precomputed"}
+(Python reference: \code{disco.py}, line 280):
+\deqn{s(i) = \frac{b(i) - a(i)}{\max(a(i),\, b(i))}}
+where \eqn{a(i)} is the mean DC distance from \eqn{i} to all other points
+in the same cluster and \eqn{b(i)} is the minimum over other clusters of
+the mean DC distance from \eqn{i} to that cluster.
+}
+\examples{
+set.seed(7)
+X <- matrix(rnorm(60), ncol = 2)
+labels <- rep(c(0L, 1L, 2L), each = 10)
+p_cluster(X, labels)
+}
+\seealso{
+\code{\link{disco_samples}}, \code{\link{compute_dc_distances}}
 }

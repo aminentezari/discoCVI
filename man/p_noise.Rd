@@ -2,26 +2,61 @@
 % Please edit documentation in R/disco.R
 \name{p_noise}
 \alias{p_noise}
-\title{Compute (p_sparse, p_far) for noise points}
+\title{Noise-point scores}
 \usage{
 p_noise(X, labels, min_points = 5, dc_dists = NULL)
 }
 \arguments{
-\item{X}{A numeric matrix or data.frame where rows are samples and columns 
-are features}
+\item{X}{A numeric matrix (\eqn{n \times p}) or \code{data.frame} of all
+points (including non-noise).}
 
-\item{labels}{Integer vector of cluster labels. -1 indicates noise.}
+\item{labels}{An integer vector of length \eqn{n}; \code{-1} denotes noise.}
 
-\item{min_points}{Integer, minimum number of points for dc-distance. Default is 5.}
+\item{min_points}{Positive integer \eqn{\geq 2}; core-distance neighbourhood size.
+Default is \code{5}.}
 
-\item{dc_dists}{Optional precomputed dc-distance matrix}
+\item{dc_dists}{Optional precomputed \eqn{n \times n} DC-distance matrix.
+If \code{NULL} (default), it is computed internally.}
 }
 \value{
-A list with two components:
-  \item{p_sparse}{Numeric vector of p_sparse scores for noise points}
-  \item{p_far}{Numeric vector of p_far scores for noise points}
+A named list with two numeric vectors, each of length equal to the
+  number of noise points:
+  \describe{
+    \item{p_sparse}{Sparsity-based noise scores.}
+    \item{p_far}{DC-distance-based noise scores.}
+  }
 }
 \description{
-Evaluates quality of noise labels by checking if points are in sparse regions
-(p_sparse) and far from clusters (p_far).
+Assigns a quality score to each point labelled as noise (\code{-1}).  Two
+complementary sub-scores are computed and the element-wise minimum is taken
+as the final score:
+
+\describe{
+  \item{\eqn{p_{\text{sparse}}}}{Measures whether the noise point is sparser
+    (more peripheral in density) than the densest part of every real cluster.
+    For cluster \eqn{c}, let \eqn{M_c} be the maximum core distance over
+    all points in \eqn{c}.  Then
+    \deqn{p_{\text{sparse}}(i) =
+      \min_c \frac{\text{core}_k(i) - M_c}{\max(\text{core}_k(i),\, M_c)}.}}
+  \item{\eqn{p_{\text{far}}}}{Measures whether the noise point is far from
+    every cluster in DC-distance space.  For cluster \eqn{c}, let
+    \eqn{d_{\min,c}(i)} be the minimum DC distance from \eqn{i} to any
+    point in \eqn{c}.  Then
+    \deqn{p_{\text{far}}(i) =
+      \min_c \frac{d_{\min,c}(i) - M_c}{\max(d_{\min,c}(i),\, M_c)}.}}
+}
+
+Both sub-scores lie in \eqn{[-1, 1]}: positive means the noise point is
+legitimately sparse/far; negative means it is denser/closer than the cluster
+boundary and might be a misclassified inlier.
+}
+\examples{
+set.seed(3)
+X <- matrix(rnorm(60), ncol = 2)
+labels <- c(rep(0L, 20), rep(1L, 20), rep(-1L, 10))
+nr <- p_noise(X, labels, min_points = 5)
+str(nr)
+}
+\seealso{
+\code{\link{disco_samples}}
 }

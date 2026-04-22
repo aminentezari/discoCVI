@@ -2,11 +2,14 @@
 % Please edit documentation in R/disco.R
 \docType{package}
 \name{disco-package}
-\alias{disco}
 \alias{disco-package}
-\title{disco: Density-Based Internal Score for Clustering Outcomes}
+\alias{disco}
+\title{disco: Density-Informed Clustering Scoring and Optimisation}
 \description{
-Implementation of DISCO (Density-based Internal Score for Clustering Outcomes), a cluster validity index for evaluating density-based clustering results. DISCO is the first CVI that explicitly evaluates the quality of noise labels in addition to cluster quality. It assesses compactness and separation using density-connectivity distance while providing interpretable, bounded scores.
+The DISCO metric evaluates the quality of a clustering result using
+density-connectivity (DC) distances derived from the minimum spanning tree
+of the mutual-reachability graph.  It generalises the silhouette coefficient
+to density-based partitions and assigns a principled score to noise points.
 }
 \seealso{
 Useful links:
@@ -27,4 +30,3 @@ Authors:
 }
 
 }
-\keyword{internal}

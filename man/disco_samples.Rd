@@ -2,41 +2,54 @@
 % Please edit documentation in R/disco.R
 \name{disco_samples}
 \alias{disco_samples}
-\title{Compute the DISCO score for each sample}
+\title{Per-sample DISCO scores}
 \usage{
 disco_samples(X, labels, min_points = 5)
 }
 \arguments{
-\item{X}{A numeric matrix or data.frame where rows are samples and columns 
-are features.}
+\item{X}{A numeric matrix (\eqn{n \times p}) or \code{data.frame}.}
 
-\item{labels}{Integer vector of cluster labels. Use -1 for noise points.}
+\item{labels}{An integer vector of length \eqn{n} containing cluster labels.
+Use \code{-1} to denote noise/outlier points.}
 
-\item{min_points}{Integer, minimum number of points for dc-distance 
-calculation. Default is 5.}
+\item{min_points}{A positive integer for the core-distance neighbourhood
+size.  Default is \code{5}.}
 }
 \value{
-A numeric vector of DISCO scores, one for each sample, with values 
-  between -1 and 1.
+A numeric vector of length \eqn{n} with per-point DISCO scores.
 }
 \description{
-Returns pointwise DISCO scores, allowing identification of problematic 
-samples in the clustering.
+Computes a pointwise DISCO score for every observation in \code{X}.  The
+score lies in \eqn{[-1, 1]}:
+\itemize{
+  \item Values close to \eqn{1} indicate a well-placed point (either
+    tightly within its cluster or a noise point far from all clusters).
+  \item Values close to \eqn{0} indicate borderline placement.
+  \item Values close to \eqn{-1} indicate a misplaced point (or a noise
+    point that should belong to a cluster).
+}
+
+Four cases are handled:
+\enumerate{
+  \item \strong{All noise} — every point labelled \code{-1}: all scores
+    are \code{-1}.
+  \item \strong{Single cluster with no noise} — all scores are \code{0}.
+  \item \strong{One real cluster + noise} — cluster points are scored via
+    \code{\link{p_cluster}}; noise points are scored via
+    \code{\link{p_noise}}.
+  \item \strong{Two or more clusters (optional noise)} — non-noise points
+    use \code{\link{p_cluster}} on the non-noise sub-matrix; noise points
+    use \code{\link{p_noise}}.
+}
 }
 \examples{
-\dontrun{
-data <- make_moons(n_samples = 200, noise = 0.05)
-X <- data$X
-labels <- data$labels
-
-# Get pointwise scores
-scores <- disco_samples(X, labels, min_points = 5)
-
-# Identify problematic points
-problematic <- which(scores < 0.3)
-}
-
+set.seed(42)
+X <- matrix(rnorm(100), ncol = 2)
+labels <- rep(c(0L, 1L), each = 25)
+s <- disco_samples(X, labels)
+hist(s, main = "Per-sample DISCO scores")
 }
 \seealso{
-\code{\link{disco_score}}
+\code{\link{disco_score}}, \code{\link{p_cluster}},
+  \code{\link{p_noise}}
 }
