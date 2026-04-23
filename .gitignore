@@ -51,3 +51,5 @@ po/*~
 rsconnect/
 .DS_Store
 .ipynb_checkpoints/
+.positai
+.RData*

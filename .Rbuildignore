@@ -7,3 +7,6 @@
 ^\.ipynb_checkpoints$
 ^Disco-R\.Rproj$
 ^\.DS_Store$
+^\.positai$
+^\.claude$
+^\.RData
