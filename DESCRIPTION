@@ -6,19 +6,21 @@ Authors@R: c(
     person("Amin", "Entezari",
            email   = "amin_entezari@outlook.com",
            role    = c("aut", "cre"),
-           comment = c(ORCID = "")),
+           comment = c(ORCID = "0009-0005-4733-6032")),
     person("Davide", "Chicco",
-           email   = "davide.chicco@gmail.com",
+           email   = "davidechicco@davidechicco.it",
            role    = "ctb",
-           comment = "Supervision and guidance"))
+           comment = c(ORCID = "0000-0001-9655-7142",
+                       "Supervision and guidance")))
 Description: R implementation of the DISCO (Density-based Internal Score for
-    Clustering Outcomes) metric, a cluster validity index (CVI) for evaluating
+    Clustering Outcomes) metric, a cluster validity index for evaluating
     density-based clustering results without ground truth labels. DISCO is the
-    first CVI to explicitly assess the quality of noise point assignments in
+    first index to explicitly assess the quality of noise point assignments in
     addition to cluster quality. It uses density-connectivity distance derived
     from a minimum spanning tree of the mutual-reachability graph, providing
     interpretable, bounded scores in [-1, 1]. Higher scores indicate better
-    clustering. Based on Beer et al. (2025) <arXiv:2503.00127>.
+    clustering. Based on Beer et al. (2025)
+    <doi:10.48550/arXiv.2503.00127>.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends:
@@ -28,10 +30,7 @@ Imports:
     stats
 Suggests:
     dbscan,
-    testthat (>= 3.0.0),
-    knitr,
-    rmarkdown
+    testthat (>= 3.0.0)
 RoxygenNote: 7.3.3
-VignetteBuilder: knitr
 URL: https://github.com/aminentezari/discoCVI
 BugReports: https://github.com/aminentezari/discoCVI/issues
