@@ -7,15 +7,10 @@ Authors@R: c(
            email   = "amin_entezari@outlook.com",
            role    = c("aut", "cre"),
            comment = c(ORCID = "")),
-    person("Anna", "Beer",
-           role    = "aut",
-           comment = "Original Python implementation (arXiv:2503.00127)"),
-    person("Lena", "Krieger",
-           role    = "aut",
-           comment = "Original Python implementation (arXiv:2503.00127)"),
-    person("Pascal", "Weber",
-           role    = "aut",
-           comment = "Original Python implementation (arXiv:2503.00127)"))
+    person("Davide", "Chicco",
+           email   = "davide.chicco@gmail.com",
+           role    = "ctb",
+           comment = "Supervision and guidance"))
 Description: R implementation of the DISCO (Density-based Internal Score for
     Clustering Outcomes) metric, a cluster validity index (CVI) for evaluating
     density-based clustering results without ground truth labels. DISCO is the
@@ -26,7 +21,6 @@ Description: R implementation of the DISCO (Density-based Internal Score for
     clustering. Based on Beer et al. (2025) <arXiv:2503.00127>.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: false
 Depends:
     R (>= 3.6.0)
 Imports:

@@ -5,8 +5,8 @@
 #' of the mutual-reachability graph.  It generalises the silhouette coefficient
 #' to density-based partitions and assigns a principled score to noise points.
 #'
-#' @docType package
-#' @name disco-package
+#' @keywords internal
+"_PACKAGE"
 #' @aliases disco
 #'
 # <- <- ' @importFrom FNN get.knn
@@ -459,9 +459,9 @@ p_cluster <- function(X, labels, min_points = 5, precomputed_dc_dists = FALSE) {
 #'
 #' @examples
 #' set.seed(3)
-#' X <- matrix(rnorm(60), ncol = 2)
-#' labels <- c(rep(0L, 20), rep(1L, 20), rep(-1L, 10))
-#' nr <- p_noise(X, labels, min_points = 5)
+#' X      <- matrix(rnorm(60), ncol = 2)   # 30 rows x 2 cols
+#' labels <- c(rep(0L, 10), rep(1L, 10), rep(-1L, 10))  # 30 labels
+#' nr     <- p_noise(X, labels, min_points = 3)
 #' str(nr)
 p_noise <- function(X, labels, min_points = 5, dc_dists = NULL) {
   if (is.data.frame(X)) X <- as.matrix(X)

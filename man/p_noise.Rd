@@ -52,9 +52,9 @@ boundary and might be a misclassified inlier.
 }
 \examples{
 set.seed(3)
-X <- matrix(rnorm(60), ncol = 2)
-labels <- c(rep(0L, 20), rep(1L, 20), rep(-1L, 10))
-nr <- p_noise(X, labels, min_points = 5)
+X      <- matrix(rnorm(60), ncol = 2)   # 30 rows x 2 cols
+labels <- c(rep(0L, 10), rep(1L, 10), rep(-1L, 10))  # 30 labels
+nr     <- p_noise(X, labels, min_points = 3)
 str(nr)
 }
 \seealso{
