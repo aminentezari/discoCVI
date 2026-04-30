@@ -1,7 +1,7 @@
 Package: discoCVI
 Type: Package
 Title: Implementation of the DISCO Metric for Internal Clustering Evaluation
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(
     person("Amin", "Entezari",
            email   = "amin_entezari@outlook.com",
@@ -11,9 +11,19 @@ Authors@R: c(
            email   = "davidechicco@davidechicco.it",
            role    = "ctb",
            comment = c(ORCID = "0000-0001-9655-7142",
-                       "Supervision and guidance")))
-Description: R implementation of the DISCO (Density-based Internal Score for
-    Clustering Outcomes) metric, a cluster validity index for evaluating
+                       "Supervision and guidance")),
+    person("Anna", "Beer",
+           role    = "aut",
+           comment = c(ORCID = "",
+                       "Original Python implementation (arXiv:2503.00127)")),
+    person("Lena", "Krieger",
+           role    = "aut",
+           comment = "Original Python implementation (arXiv:2503.00127)"),
+    person("Pascal", "Weber",
+           role    = "aut",
+           comment = "Original Python implementation (arXiv:2503.00127)"))
+Description: Implementation of the DISCO (Density-based Internal Score for
+    Clusterings with nOise) metric, a cluster validity index for evaluating
     density-based clustering results without ground truth labels. DISCO is the
     first index to explicitly assess the quality of noise point assignments in
     addition to cluster quality. It uses density-connectivity distance derived

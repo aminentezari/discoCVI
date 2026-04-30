@@ -7,9 +7,8 @@
 #'
 #' @keywords internal
 "_PACKAGE"
-#' @aliases disco
 #'
-# <- <- ' @importFrom FNN get.knn
+#' @importFrom FNN get.knn
 #' @importFrom stats dist
 NULL
 
@@ -40,11 +39,6 @@ NULL
 #'
 #' @keywords internal
 #'
-#' @examples
-#' \dontrun{
-#' X <- matrix(rnorm(50), ncol = 2)
-#' R <- calculate_reachability_distance(X, min_points = 5)
-#' }
 calculate_reachability_distance <- function(points, min_points = 5) {
   if (min_points < 2L)
     stop("`min_points` must be at least 2 for core-distance computation.")

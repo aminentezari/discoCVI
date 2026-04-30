@@ -20,13 +20,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Amin Entezari \email{amin_entezari@outlook.com}
+\strong{Maintainer}: Amin Entezari \email{amin_entezari@outlook.com} (\href{https://orcid.org/0009-0005-4733-6032}{ORCID})
 
-Authors:
+Other contributors:
 \itemize{
-  \item Anna Beer (Original Python implementation (arXiv:2503.00127))
-  \item Lena Krieger (Original Python implementation (arXiv:2503.00127))
-  \item Pascal Weber (Original Python implementation (arXiv:2503.00127))
+  \item Davide Chicco \email{davidechicco@davidechicco.it} (\href{https://orcid.org/0000-0001-9655-7142}{ORCID}) (Supervision and guidance) [contributor]
 }
 
 }

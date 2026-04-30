@@ -25,10 +25,4 @@ where \eqn{\text{core}_k(i)} is the distance from point \eqn{i} to its
 \eqn{k}-th nearest neighbour (\eqn{k = \texttt{min\_points} - 1}) and
 \eqn{d(i,j)} is the Euclidean distance.
 }
-\examples{
-\dontrun{
-X <- matrix(rnorm(50), ncol = 2)
-R <- calculate_reachability_distance(X, min_points = 5)
-}
-}
 \keyword{internal}
