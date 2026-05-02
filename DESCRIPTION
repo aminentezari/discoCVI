@@ -14,8 +14,7 @@ Authors@R: c(
                        "Supervision and guidance")),
     person("Anna", "Beer",
            role    = "aut",
-           comment = c(ORCID = "",
-                       "Original Python implementation (arXiv:2503.00127)")),
+           comment = "Original Python implementation (arXiv:2503.00127)"),
     person("Lena", "Krieger",
            role    = "aut",
            comment = "Original Python implementation (arXiv:2503.00127)"),
@@ -33,6 +32,7 @@ Description: Implementation of the DISCO (Density-based Internal Score for
     <doi:10.48550/arXiv.2503.00127>.
 License: MIT + file LICENSE
 Encoding: UTF-8
+Language: en-GB
 Depends:
     R (>= 3.6.0)
 Imports:
