@@ -260,9 +260,10 @@ CodeCarbon [@codecarbon] around the whole process, and the median energy of
 a baseline process that generates the data without computing DISCO was
 subtracted. Each configuration was run five times in random order, after a
 warm-up; we report medians. Both versions returned identical scores for
-every $n$. The machine was an Apple Silicon laptop running macOS and R 4.5.3,
-using a single thread.
-<!-- TODO: add the exact chip (e.g. M3 Pro) and RAM. -->
+every $n$. The machine was a 2023 MacBook Pro with an Apple M2 Pro chip and
+16 GB of memory, running macOS 27, R 4.5.3, \CRANpkg{FNN} 1.1.4.1,
+\CRANpkg{Rcpp} 1.1.2 and CodeCarbon 3.2.8 (Python 3.10), using a single
+thread.
 
 ```{r tab-bench}
 w <- reshape(res[, c("version", "n", "time_med", "rss_med", "energy_net_mWh")],

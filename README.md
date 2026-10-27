@@ -230,7 +230,7 @@ of clusters) instead of quadratically. Time is still dominated by the
 O(n²) spanning tree, but without R loops or large temporary matrices.
 
 Benchmark on synthetic data (3 Gaussian blobs + 5% noise, 2 dimensions;
-Apple Silicon laptop, single thread; median of 5 runs, each in a fresh R
+MacBook Pro, Apple M2 Pro, 16 GB, single thread; median of 5 runs, each in a fresh R
 process; peak memory = maximum resident set size of the whole R process,
 of which about 67 MB is R itself; energy measured with CodeCarbon, minus an
 R start-up baseline). Scores of the two versions are identical.
