@@ -41,6 +41,12 @@ Four cases are handled:
     use \code{\link{p_cluster}} on the non-noise sub-matrix; noise points
     use \code{\link{p_noise}}.
 }
+
+Since version 0.2.0 these quantities are computed from the merge tree of
+the mutual-reachability minimum spanning tree, without storing any
+\eqn{n \times n} matrix: memory grows linearly with \eqn{n} (times the
+number of clusters), and the scores are identical to the previous
+matrix-based implementation up to floating-point rounding.
 }
 \examples{
 set.seed(42)

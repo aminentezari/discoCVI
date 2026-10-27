@@ -1,7 +1,7 @@
 Package: discoCVI
 Type: Package
 Title: Implementation of the DISCO Metric for Internal Clustering Evaluation
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: c(
     person("Amin", "Entezari",
            email   = "amin_entezari@outlook.com",
@@ -37,7 +37,10 @@ Depends:
     R (>= 3.6.0)
 Imports:
     FNN,
+    Rcpp,
     stats
+LinkingTo:
+    Rcpp
 Suggests:
     dbscan,
     testthat (>= 3.0.0)

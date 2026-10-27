@@ -2,7 +2,7 @@
 % Please edit documentation in R/disco.R
 \name{extract_dc_distances_from_mst}
 \alias{extract_dc_distances_from_mst}
-\title{Extract DC distances from an MST via BFS minimax-path traversal}
+\title{Extract DC distances from an MST (minimax path weights)}
 \usage{
 extract_dc_distances_from_mst(mst_edges, n)
 }
@@ -19,6 +19,11 @@ A symmetric \eqn{n \times n} numeric matrix of DC distances.
 Given the edges of a minimum spanning tree, computes the density-connectivity
 (DC) distance matrix.  The DC distance between two points is the maximum
 edge weight on the unique path connecting them in the MST (minimax path).
-BFS is used to propagate these path maxima from every source node.
+Edges are processed in increasing order of weight (Kruskal order): when an
+edge of weight \eqn{w} joins two groups of points \eqn{A} and \eqn{B}, every
+pair \eqn{(a, b)} with \eqn{a \in A}, \eqn{b \in B} has DC distance exactly
+\eqn{w}, so the whole block is filled at once.  This replaces the
+breadth-first search from every node used up to version 0.1.1 and gives
+identical results.
 }
 \keyword{internal}

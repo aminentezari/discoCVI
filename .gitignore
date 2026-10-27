@@ -53,3 +53,8 @@ rsconnect/
 .ipynb_checkpoints/
 .positai
 .RData*
+
+# compiled code
+src/*.o
+src/*.so
+src/*.dll

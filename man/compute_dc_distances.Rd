@@ -20,13 +20,17 @@ A symmetric \eqn{n \times n} numeric matrix of DC distances.
 The main entry point for constructing the DC-distance matrix used throughout
 the DISCO metric.  The procedure is:
 \enumerate{
-  \item Compute mutual-reachability distances
-    (\code{\link{calculate_reachability_distance}}).
-  \item Build the minimum spanning tree of those distances
-    (\code{\link{get_mst_edges}}).
+  \item Compute core distances and build the minimum spanning tree of the
+    mutual-reachability distances (see
+    \code{\link{calculate_reachability_distance}}).  Since version 0.2.0
+    the tree is built in compiled code with distances computed on the fly,
+    so the mutual-reachability matrix is never stored.
   \item Extract pairwise DC distances as minimax-path weights in the MST
     (\code{\link{extract_dc_distances_from_mst}}).
 }
+Note that the returned matrix has \eqn{n^2} entries;
+\code{\link{disco_samples}} and \code{\link{disco_score}} do not need it
+and use far less memory.
 }
 \examples{
 set.seed(1)

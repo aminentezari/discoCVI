@@ -10,6 +10,8 @@
 #'
 #' @importFrom FNN get.knn
 #' @importFrom stats dist
+#' @importFrom Rcpp sourceCpp
+#' @useDynLib discoCVI, .registration = TRUE
 NULL
 
 
@@ -111,13 +113,18 @@ get_mst_edges <- function(dist_matrix) {
 
 
 # -----------------------------------------------------------------------------
-#' Extract DC distances from an MST via BFS minimax-path traversal
+#' Extract DC distances from an MST (minimax path weights)
 #'
 #' @description
 #' Given the edges of a minimum spanning tree, computes the density-connectivity
 #' (DC) distance matrix.  The DC distance between two points is the maximum
 #' edge weight on the unique path connecting them in the MST (minimax path).
-#' BFS is used to propagate these path maxima from every source node.
+#' Edges are processed in increasing order of weight (Kruskal order): when an
+#' edge of weight \eqn{w} joins two groups of points \eqn{A} and \eqn{B}, every
+#' pair \eqn{(a, b)} with \eqn{a \in A}, \eqn{b \in B} has DC distance exactly
+#' \eqn{w}, so the whole block is filled at once.  This replaces the
+#' breadth-first search from every node used up to version 0.1.1 and gives
+#' identical results.
 #'
 #' @param mst_edges A \code{data.frame} with columns \code{i}, \code{j},
 #'   \code{dist} as returned by \code{\link{get_mst_edges}}.
@@ -127,32 +134,27 @@ get_mst_edges <- function(dist_matrix) {
 #'
 #' @keywords internal
 extract_dc_distances_from_mst <- function(mst_edges, n) {
-  adj <- vector("list", n)
-  for (k in seq_len(nrow(mst_edges))) {
-    u <- mst_edges$i[k]; v <- mst_edges$j[k]; w <- mst_edges$dist[k]
-    adj[[u]] <- c(adj[[u]], list(c(v, w)))
-    adj[[v]] <- c(adj[[v]], list(c(u, w)))
-  }
-  
   dc_dists <- matrix(0, n, n)
-  for (start in seq_len(n)) {
-    visited        <- rep(FALSE, n)
-    max_edge       <- rep(0.0, n)
-    visited[start] <- TRUE
-    queue          <- list(start)
-    
-    while (length(queue) > 0L) {
-      cur   <- queue[[1L]]; queue <- queue[-1L]
-      for (nb_w in adj[[cur]]) {
-        nb <- nb_w[1L]; w <- nb_w[2L]
-        if (!visited[nb]) {
-          visited[nb]  <- TRUE
-          max_edge[nb] <- max(max_edge[cur], w)
-          queue[[length(queue) + 1L]] <- nb
-        }
-      }
+  if (n < 2L || nrow(mst_edges) == 0L) return(dc_dists)
+
+  e       <- mst_edges[order(mst_edges$dist), , drop = FALSE]
+  comp    <- seq_len(n)              # group id of each point
+  members <- as.list(seq_len(n))     # points in each group
+  for (k in seq_len(nrow(e))) {
+    a  <- comp[e$i[k]]
+    b  <- comp[e$j[k]]
+    ma <- members[[a]]
+    mb <- members[[b]]
+    w  <- e$dist[k]
+    dc_dists[ma, mb] <- w
+    dc_dists[mb, ma] <- w
+    if (length(ma) < length(mb)) {   # merge the smaller group into the larger
+      tmp <- a;  a  <- b;  b  <- tmp
+      tmp <- ma; ma <- mb; mb <- tmp
     }
-    dc_dists[start, ] <- max_edge
+    comp[mb]     <- a
+    members[[a]] <- c(ma, mb)
+    members[[b]] <- integer(0)
   }
   dc_dists
 }
@@ -165,13 +167,17 @@ extract_dc_distances_from_mst <- function(mst_edges, n) {
 #' The main entry point for constructing the DC-distance matrix used throughout
 #' the DISCO metric.  The procedure is:
 #' \enumerate{
-#'   \item Compute mutual-reachability distances
-#'     (\code{\link{calculate_reachability_distance}}).
-#'   \item Build the minimum spanning tree of those distances
-#'     (\code{\link{get_mst_edges}}).
+#'   \item Compute core distances and build the minimum spanning tree of the
+#'     mutual-reachability distances (see
+#'     \code{\link{calculate_reachability_distance}}).  Since version 0.2.0
+#'     the tree is built in compiled code with distances computed on the fly,
+#'     so the mutual-reachability matrix is never stored.
 #'   \item Extract pairwise DC distances as minimax-path weights in the MST
 #'     (\code{\link{extract_dc_distances_from_mst}}).
 #' }
+#' Note that the returned matrix has \eqn{n^2} entries;
+#' \code{\link{disco_samples}} and \code{\link{disco_score}} do not need it
+#' and use far less memory.
 #'
 #' @param X A numeric matrix of shape \eqn{n \times p}, or a
 #'   \code{data.frame} that will be coerced to a matrix.
@@ -189,13 +195,14 @@ extract_dc_distances_from_mst <- function(mst_edges, n) {
 #' dim(D)   # 20 x 20
 compute_dc_distances <- function(X, min_points = 5) {
   if (is.data.frame(X)) X <- as.matrix(X)
+  X <- as.matrix(X)
+  storage.mode(X) <- "double"
   n <- nrow(X)
   if (n == 0L) return(matrix(0, 0, 0))
   if (n == 1L) return(matrix(0, 1, 1))
-  
-  reach_dists <- calculate_reachability_distance(X, min_points)
-  mst_edges   <- get_mst_edges(reach_dists)
-  mst_edges   <- mst_edges[order(mst_edges$dist), ]
+
+  core      <- .core_distances(X, min_points)
+  mst_edges <- .mst_edges_mrd(X, core)
   extract_dc_distances_from_mst(mst_edges, n)
 }
 
@@ -232,6 +239,12 @@ compute_dc_distances <- function(X, min_points = 5) {
 #'     use \code{\link{p_noise}}.
 #' }
 #'
+#' Since version 0.2.0 these quantities are computed from the merge tree of
+#' the mutual-reachability minimum spanning tree, without storing any
+#' \eqn{n \times n} matrix: memory grows linearly with \eqn{n} (times the
+#' number of clusters), and the scores are identical to the previous
+#' matrix-based implementation up to floating-point rounding.
+#'
 #' @param X A numeric matrix (\eqn{n \times p}) or \code{data.frame}.
 #' @param labels An integer vector of length \eqn{n} containing cluster labels.
 #'   Use \code{-1} to denote noise/outlier points.
@@ -264,40 +277,13 @@ disco_samples <- function(X, labels, min_points = 5) {
     return(rep(-1, nrow(X)))
   if (length(label_set) == 1L && label_set[1L] != -1L)
     return(rep( 0, nrow(X)))
-  
-  dc_dists <- compute_dc_distances(X, min_points)
-  
-  # ── One real cluster + noise ──────────────────────────────────────────────
-  if (length(label_set) == 2L && -1L %in% label_set) {
-    l_         <- labels
-    noise_mask <- labels == -1L
-    n_noise    <- sum(noise_mask)
-    l_[noise_mask] <- seq(-1L, -n_noise, by = -1L)
-    
-    disco_values <- numeric(nrow(X))
-    cs <- p_cluster(dc_dists, l_, precomputed_dc_dists = TRUE)
-    disco_values[!noise_mask] <- cs[!noise_mask]
-    
-    nr <- p_noise(X, labels, min_points = min_points, dc_dists = dc_dists)
-    disco_values[noise_mask] <- pmin(nr$p_sparse, nr$p_far)
-    return(disco_values)
-  }
-  
-  # ── Two or more clusters (optional noise) ────────────────────────────────
-  disco_values       <- numeric(nrow(X))
-  non_noise_mask     <- labels != -1L
-  non_noise_dc_dists <- dc_dists[non_noise_mask, non_noise_mask, drop = FALSE]
-  non_noise_labels   <- labels[non_noise_mask]
-  
-  disco_values[non_noise_mask] <- p_cluster(
-    non_noise_dc_dists, non_noise_labels, precomputed_dc_dists = TRUE
-  )
-  
-  if (any(!non_noise_mask)) {
-    nr <- p_noise(X, labels, min_points = min_points, dc_dists = dc_dists)
-    disco_values[!non_noise_mask] <- pmin(nr$p_sparse, nr$p_far)
-  }
-  disco_values
+
+  # Since version 0.2.0 the scores are computed from the single-linkage merge
+  # tree of the mutual-reachability MST, without any n x n matrix (see
+  # R/disco_tree.R).  The results are identical to the matrix-based
+  # computation (p_cluster() on DC distances for cluster points, p_noise()
+  # for noise points) up to floating-point rounding.
+  .disco_samples_tree(X, labels, min_points)
 }
 
 
@@ -382,26 +368,27 @@ p_cluster <- function(X, labels, min_points = 5, precomputed_dc_dists = FALSE) {
   
   dc_dists <- if (precomputed_dc_dists) X else compute_dc_distances(X, min_points)
   
-  n      <- nrow(dc_dists)
-  scores <- numeric(n)
-  
-  for (i in seq_len(n)) {
-    cl       <- labels[i]
-    same_idx <- which(labels == cl)
-    same_idx <- same_idx[same_idx != i]
-    a        <- if (length(same_idx) > 0L) mean(dc_dists[i, same_idx]) else 0
-    
-    b <- Inf
-    for (ol in unique_labels[unique_labels != cl]) {
-      other_idx <- which(labels == ol)
-      if (length(other_idx) > 0L)
-        b <- min(b, mean(dc_dists[i, other_idx]))
-    }
-    
-    denom     <- max(a, b)
-    scores[i] <- if (is.finite(b) && denom != 0) (b - a) / denom else 0
-  }
-  scores
+  n   <- nrow(dc_dists)
+  idx <- match(labels, unique_labels)
+
+  # Sum of DC distances from every point to every cluster, in one product
+  M   <- matrix(0, n, n_labels)
+  M[cbind(seq_len(n), idx)] <- 1
+  S   <- dc_dists %*% M                       # n x n_labels
+  sz  <- colSums(M)
+  own <- cbind(seq_len(n), idx)
+
+  # a: mean DC distance to the other members of the own cluster (0 if alone)
+  msz <- sz[idx]
+  a   <- ifelse(msz > 1, S[own] / pmax(msz - 1, 1), 0)
+
+  # b: smallest mean DC distance to another cluster
+  B      <- sweep(S, 2L, sz, "/")
+  B[own] <- Inf
+  b      <- do.call(pmin, lapply(seq_len(n_labels), function(j) B[, j]))
+
+  denom <- pmax(a, b)
+  ifelse(is.finite(b) & denom != 0, (b - a) / denom, 0)
 }
 
 
