@@ -11,3 +11,5 @@
 ^\.claude$
 ^\.RData
 ^benchmarks$
+^paper$
+^cran-comments\.md$

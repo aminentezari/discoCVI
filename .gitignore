@@ -63,3 +63,19 @@ src/*.dll
 benchmarks/emissions.csv
 benchmarks/.codecarbon.config
 benchmarks/powermetrics_log.txt
+
+# R Journal article build outputs
+paper/*.html
+paper/entezari-disco.tex
+paper/*.log
+paper/*.pdf
+paper/RJwrapper.pdf
+paper/RJwrapper.log
+paper/RJwrapper.aux
+paper/RJwrapper.bbl
+paper/RJwrapper.blg
+paper/RJwrapper.out
+paper/*.knit.md
+paper/entezari-disco.R
+paper/*_files/
+paper/Rlogo-5.png
