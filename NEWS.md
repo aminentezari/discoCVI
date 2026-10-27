@@ -9,9 +9,10 @@
   distances per cluster) are obtained in a single pass over the resulting
   single-linkage merge tree. Memory now grows linearly with the number of
   points (times the number of clusters) instead of quadratically. On
-  synthetic benchmarks, scoring 2,000 points is about 95 times faster than
-  in 0.1.1, and 100,000 points can be scored in under a minute with about
-  100 MB of additional memory.
+  synthetic benchmarks, 0.2.0 is 23 to 138 times faster than 0.1.1
+  (n = 500 to 4,000; 1,222 MB vs 93 MB peak memory at n = 4,000), and
+  100,000 points can be scored in about 50 seconds with about 200 MB peak
+  memory for the whole R process.
 * `extract_dc_distances_from_mst()` fills the DC-distance matrix block by
   block in Kruskal order instead of running a breadth-first search from
   every point.

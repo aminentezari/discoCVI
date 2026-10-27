@@ -58,3 +58,8 @@ rsconnect/
 src/*.o
 src/*.so
 src/*.dll
+
+# benchmark outputs
+benchmarks/emissions.csv
+benchmarks/.codecarbon.config
+benchmarks/powermetrics_log.txt
