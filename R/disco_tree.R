@@ -113,7 +113,9 @@
     Mb[pos] <- Inf
     b   <- do.call(pmin, lapply(seq_len(K), function(r) Mb[r, ]))
     den <- pmax(a, b)
-    out[ci] <- ifelse(is.finite(b) & den != 0, (b - a) / den, 0)
+    sc  <- ifelse(is.finite(b) & den != 0, (b - a) / den, 0)
+    sc[msz == 1] <- 0                              # singleton clusters score 0
+    out[ci] <- sc
   }
 
   # ---- 6. noise points: p_sparse and p_far -------------------------------

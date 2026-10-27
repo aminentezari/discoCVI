@@ -35,7 +35,9 @@ Euclidean distances.  This matches the formula used by
 \deqn{s(i) = \frac{b(i) - a(i)}{\max(a(i),\, b(i))}}
 where \eqn{a(i)} is the mean DC distance from \eqn{i} to all other points
 in the same cluster and \eqn{b(i)} is the minimum over other clusters of
-the mean DC distance from \eqn{i} to that cluster.
+the mean DC distance from \eqn{i} to that cluster.  Points that form a
+singleton cluster score \eqn{0}, as defined in the DISCO paper (and as in
+\code{silhouette_samples}); version 0.1.1 incorrectly gave them \eqn{1}.
 }
 \examples{
 set.seed(7)

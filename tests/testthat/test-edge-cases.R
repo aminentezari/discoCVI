@@ -4,6 +4,17 @@ test_that("all-noise and single-cluster inputs follow the documented rules", {
   expect_equal(disco_samples(X, rep(3L, 20)), rep(0, 20))
 })
 
+test_that("points in singleton clusters score 0 (DISCO paper, Section 3)", {
+  set.seed(22)
+  d   <- make_blobs(120, noise_frac = 0.1)
+  lab <- d$labels
+  lab[5] <- 77L                                   # one point alone in its cluster
+  expect_equal(disco_samples(d$X, lab)[5], 0)
+  D <- compute_dc_distances(d$X)
+  nn <- lab != -1L
+  expect_equal(p_cluster(D[nn, nn], lab[nn], precomputed_dc_dists = TRUE)[which(which(nn) == 5)], 0)
+})
+
 test_that("scores are bounded in [-1, 1]", {
   set.seed(20)
   d <- make_blobs(150, noise_frac = 0.2)

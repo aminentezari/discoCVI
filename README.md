@@ -25,6 +25,8 @@ Beer, Krieger, Weber et al. (2025).
 - **Identical results.** Every exported function is tested against the 0.1.1
   implementation (`tests/testthat`); differences are at the level of
   floating-point rounding (< 1e-14).
+- **Bug fix.** Points in singleton clusters now score 0, as defined in the
+  DISCO paper (0.1.1 gave them 1).
 - **Compiled code.** The minimum spanning tree is built in C++ (Rcpp).
 
 See [NEWS.md](NEWS.md) for details.
@@ -293,9 +295,16 @@ DISCO - DBSCAN  : 0.6900921813  (R == Python)
 DISCO - K-Means : 0.0270091908  (R == Python)
 ```
 
+### Bug 4 - Singleton Clusters (fixed in 0.2.0)
+
+The DISCO paper sets the score of a point that forms a cluster on its own to
+0 (Section 3, "Edge cases"). Version 0.1.1 returned 1 for such points, because
+the mean distance to the "rest of its cluster" was taken as 0. Version 0.2.0
+follows the paper. Labelings without singleton clusters are not affected.
+
 Version 0.2.0 replaces the matrix-based computation with the merge-tree
 algorithm described under [Performance](#performance) and is tested to give
-the same results as 0.1.1.
+the same results as 0.1.1 (apart from the singleton fix).
 
 ---
 

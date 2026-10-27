@@ -19,11 +19,21 @@
 * `compute_dc_distances()` no longer builds the mutual-reachability matrix.
 * `p_cluster()` is vectorised (one matrix product instead of nested loops).
 
+## Bug fixes
+
+* Points that form a singleton cluster now receive a cluster score of 0, as
+  defined in the DISCO paper (Beer et al., Section 3, "Edge cases") and as in
+  scikit-learn's `silhouette_samples()`. Version 0.1.1 gave them a score of
+  1, which inflated `disco_score()` for labelings containing singleton
+  clusters (for example from DBSCAN with a small `minPts`). Labelings
+  without singleton clusters are not affected.
+
 ## Correctness
 
-* All results are identical to version 0.1.1 up to floating-point rounding.
-  A test suite comparing every exported function against the 0.1.1
-  implementation has been added (`tests/testthat`).
+* Apart from the singleton fix above, all results are identical to version
+  0.1.1 up to floating-point rounding. A test suite comparing every exported
+  function against the 0.1.1 implementation has been added
+  (`tests/testthat`).
 
 ## Dependencies
 

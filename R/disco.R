@@ -328,7 +328,9 @@ disco_score <- function(X, labels, min_points = 5) {
 #' \deqn{s(i) = \frac{b(i) - a(i)}{\max(a(i),\, b(i))}}
 #' where \eqn{a(i)} is the mean DC distance from \eqn{i} to all other points
 #' in the same cluster and \eqn{b(i)} is the minimum over other clusters of
-#' the mean DC distance from \eqn{i} to that cluster.
+#' the mean DC distance from \eqn{i} to that cluster.  Points that form a
+#' singleton cluster score \eqn{0}, as defined in the DISCO paper (and as in
+#' \code{silhouette_samples}); version 0.1.1 incorrectly gave them \eqn{1}.
 #'
 #' @param X Either (a) a numeric matrix of raw data (\eqn{n \times p}) when
 #'   \code{precomputed_dc_dists = FALSE}, or (b) a precomputed \eqn{n \times n}
@@ -387,8 +389,12 @@ p_cluster <- function(X, labels, min_points = 5, precomputed_dc_dists = FALSE) {
   B[own] <- Inf
   b      <- do.call(pmin, lapply(seq_len(n_labels), function(j) B[, j]))
 
-  denom <- pmax(a, b)
-  ifelse(is.finite(b) & denom != 0, (b - a) / denom, 0)
+  denom  <- pmax(a, b)
+  scores <- ifelse(is.finite(b) & denom != 0, (b - a) / denom, 0)
+
+  # Points in singleton clusters score 0 (Beer et al., Section 3, edge cases)
+  scores[msz == 1] <- 0
+  scores
 }
 
 

@@ -1,6 +1,9 @@
 # Reference implementation: discoCVI v0.1.1 (matrix-based, BFS minimax),
 # kept verbatim (functions renamed with the ref_ prefix) so that the tests
 # can check that v0.2.0 gives identical results.
+# The ONLY change is the singleton-cluster rule in ref_p_cluster(), marked
+# "0.2.0 bug fix": the DISCO paper (Beer et al., Section 3) sets the score of
+# points in singleton clusters to 0, whereas v0.1.1 returned 1.
 
 ref_calculate_reachability_distance <- function(points, min_points = 5) {
   if (min_points < 2L)
@@ -107,6 +110,7 @@ ref_p_cluster <- function(X, labels, min_points = 5, precomputed_dc_dists = FALS
     }
     denom     <- max(a, b)
     scores[i] <- if (is.finite(b) && denom != 0) (b - a) / denom else 0
+    if (length(same_idx) == 0L) scores[i] <- 0   # 0.2.0 bug fix: singleton -> 0
   }
   scores
 }
