@@ -1,12 +1,13 @@
 ---
 output: pdf_document
 fontsize: 12pt
+geometry: margin=2.5cm
 ---
 
 \thispagestyle{empty}
 \today
 
-Editor
+Editor\
 The R Journal
 \bigskip
 
@@ -38,6 +39,11 @@ to R Journal readers working on clustering and model selection, and to those
 concerned with the computational and environmental cost of statistical
 software.
 
+The package is on CRAN (version 0.2.0, with the implementation described in
+the article). Version 0.2.1, which only adds the workflow vignette described
+in the article, was submitted to CRAN on 28 October 2026 and is under review;
+it is already available on GitHub (https://github.com/aminentezari/discoCVI).
+
 The manuscript has not been published or submitted elsewhere.
 
 \bigskip
@@ -45,8 +51,8 @@ The manuscript has not been published or submitted elsewhere.
 
 Regards,
 
-Amin Entezari
-Università di Milano-Bicocca, Milan, Italy
+Amin Entezari\
+Università di Milano-Bicocca, Milan, Italy\
 amin_entezari@outlook.com
 
 \bigskip
