@@ -1,12 +1,12 @@
 ---
 title: "Fast and Memory-Light Evaluation of Density-Based Clusterings with the DISCO Index in R"
-date: "2026-10-27"
+date: 2026-10-28
 abstract: >
   DISCO is a recent internal cluster validity index for density-based
   clusterings that, unlike earlier indices, explicitly evaluates the quality
   of noise labels. Its definition relies on density-connectivity distances
   between all pairs of points, and a direct implementation therefore stores
-  several $n \times n$ matrices, which restricts it to a few thousand points.
+  several n-by-n matrices, which restricts it to a few thousand points.
   We show that every quantity DISCO needs can be read off the single-linkage
   merge tree of the mutual-reachability minimum spanning tree: the
   density-connectivity distance between two points equals the height at
@@ -14,8 +14,9 @@ abstract: >
   distances can be accumulated for all points in one pass over the tree.
   Combined with a minimum spanning tree that is built in compiled code
   without storing a distance matrix, this yields an exact algorithm whose
-  memory grows linearly with the number of points. The method is
-  implemented in version 0.2.0 of the \CRANpkg{discoCVI} package, which is
+  memory grows linearly with the number of points, while the running time
+  remains quadratic as in the original definition. The method is
+  implemented in version 0.2.0 of the discoCVI package, which is
   tested to reproduce the previous implementation up to floating-point
   rounding and also corrects the treatment of singleton clusters. In a
   benchmark with time, peak memory and energy measurements, the new version
@@ -88,48 +89,90 @@ This article makes three contributions.
 3. We report a benchmark of time, peak memory and energy, measured with
    CodeCarbon [@codecarbon], comparing the two versions.
 
+**Related software.** Several CRAN packages provide internal validity
+indices: \CRANpkg{cluster} computes the silhouette coefficient,
+\CRANpkg{clusterCrit} and \CRANpkg{fpc} offer a wide range of classical
+indices (\CRANpkg{fpc} also implements the density-based index CDbw), and
+\CRANpkg{DBCVindex} implements DBCV [@chicco2025dbcv]. None of them evaluates
+noise labels. The original DISCO implementation is written in Python, and
+\CRANpkg{discoCVI} is, to our knowledge, the only implementation of DISCO
+for R.
+
 # The DISCO index
 
-Let $X = \{x_1, \dots, x_n\} \subset \mathbb{R}^p$ and let each point carry a
-label that is either a cluster $C_1, \dots, C_K$ or noise ($-1$). For a
-parameter $\mu$ (`min_points` in the package), the core distance
-$\kappa(x)$ is the Euclidean distance from $x$ to its $(\mu - 1)$-th nearest
-neighbour, and the mutual-reachability distance is
-$$
-d_m(x, y) = \max\{\kappa(x), \kappa(y), \lVert x - y \rVert\}.
-$$
-The dc-distance $d_{dc}(x, y)$ is the minimax path distance in the complete
-graph weighted by $d_m$: the smallest possible value of the largest edge on
-a path from $x$ to $y$ [@beer2023dc]. It equals the largest edge on the path
-between $x$ and $y$ in any minimum spanning tree (MST) of that graph
-[@hu1961maxcap].
+We follow the notation of @beer2026disco. Let
+$X = \{x_1, \dots, x_n\} \subset \mathbb{R}^p$ and let a clustering
+$\mathcal{C} = \{C_1, \dots, C_K\}$ consist of disjoint clusters, with the
+remaining points $N = X \setminus \bigcup_i C_i$ labelled as noise; for a
+cluster point $x$, $\hat{C}_x$ denotes its cluster. In \CRANpkg{discoCVI},
+clusters are given by integer labels and noise by the label `-1`.
 
-**Cluster points.** For a point $x$ in cluster $C$, DISCO uses the silhouette
-coefficient computed on dc-distances,
+**Distances.** For a parameter $\mu$ (`min_points` in the package, default
+5), the core distance $\kappa(x)$ is the Euclidean distance from $x$ to its
+$\mu$-th nearest neighbour, where $x$ counts as its own first neighbour, as
+in the reference implementation; equivalently, it is the distance to the
+$(\mu - 1)$-th nearest *other* point, and $\mu \geq 2$ is required. The
+mutual-reachability distance [@campello2013hdbscan] is
+$$
+d_m(x, y) = \max\{\kappa(x), \kappa(y), \lVert x - y \rVert\},
+$$
+and the dc-distance [@beer2023dc] is the minimax path distance in the
+complete graph weighted by $d_m$, that is, the smallest possible value of the
+largest edge on a path from $x$ to $y$, with $d_{dc}(x, x) = 0$. It equals the
+largest edge on the path between $x$ and $y$ in any minimum spanning tree
+(MST) of that graph [@hu1961maxcap]; in particular it does not depend on how
+ties between equal edge weights are broken when the MST is built.
+
+**DISCO score.** DISCO is defined pointwise, and the score of a clustering is
+the mean of the pointwise scores,
+$$
+\rho(X) = \frac{1}{n} \sum_{x \in X} \rho(x), \qquad
+\rho(x) = \begin{cases} \rho_{\text{cluster}}(x) & \text{if } x \in C_i
+\text{ for some } i,\\ \rho_{\text{noise}}(x) & \text{if } x \in N. \end{cases}
+$$
+
+**Cluster points.** With $\bar{d}_{dc}(x, C)$ the mean dc-distance from $x$
+to the points of $C$, a cluster point receives
+$$
+\rho_{\text{cluster}}(x) = \min_{C_i \neq \hat{C}_x}
+\frac{\bar{d}_{dc}(x, C_i) - \bar{d}_{dc}(x, \hat{C}_x)}
+     {\max\{\bar{d}_{dc}(x, C_i), \bar{d}_{dc}(x, \hat{C}_x)\}}.
+$$
+For fixed $a \geq 0$ the function $b \mapsto (b - a)/\max\{a, b\}$ is
+non-decreasing, so the minimum over clusters is attained at the closest
+cluster, and $\rho_{\text{cluster}}$ is the silhouette coefficient
+[@rousseeuw1987silhouette] computed on dc-distances:
 $$
 \rho_{\text{cluster}}(x) = \frac{b(x) - a(x)}{\max\{a(x), b(x)\}}, \quad
-a(x) = \frac{1}{|C| - 1} \sum_{y \in C \setminus \{x\}} d_{dc}(x, y), \quad
-b(x) = \min_{C' \neq C} \frac{1}{|C'|} \sum_{y \in C'} d_{dc}(x, y).
+a(x) = \frac{1}{|\hat{C}_x| - 1} \sum_{y \in \hat{C}_x \setminus \{x\}} d_{dc}(x, y), \quad
+b(x) = \min_{C_i \neq \hat{C}_x} \frac{1}{|C_i|} \sum_{y \in C_i} d_{dc}(x, y).
 $$
+As in the reference implementation, which uses the silhouette function of
+scikit-learn [@pedregosa2011sklearn], the within-cluster mean $a(x)$ is taken
+over the *other* members of $\hat{C}_x$.
 
-**Noise points.** With $\kappa(C) = \max_{y \in C} \kappa(y)$, a noise point
-$x$ receives
+**Noise points.** With the core-distance threshold of a cluster
+$\kappa(C) = \max_{y \in C} \kappa(y)$ and $m_C(x) = \min_{y \in C} d_{dc}(x, y)$,
+a noise point receives the minimum of two scores,
 $$
-\rho_{\text{noise}}(x) = \min\Bigl\{
-\min_{C} \frac{\kappa(x) - \kappa(C)}{\max\{\kappa(x), \kappa(C)\}},\;
-\min_{C} \frac{m_C(x) - \kappa(C)}{\max\{m_C(x), \kappa(C)\}}
-\Bigr\},
-\qquad m_C(x) = \min_{y \in C} d_{dc}(x, y).
+\rho_{\text{sparse}}(x) = \min_{C \in \mathcal{C}} \frac{\kappa(x) - \kappa(C)}{\max\{\kappa(x), \kappa(C)\}}, \qquad
+\rho_{\text{far}}(x) = \min_{C \in \mathcal{C}} \frac{m_C(x) - \kappa(C)}{\max\{m_C(x), \kappa(C)\}},
 $$
-The first term (`p_sparse`) is positive if $x$ is sparser than every cluster;
-the second (`p_far`) is positive if $x$ is not density-connected to any
-cluster.
+$$
+\rho_{\text{noise}}(x) = \min\{\rho_{\text{sparse}}(x), \rho_{\text{far}}(x)\}.
+$$
+$\rho_{\text{sparse}}$ (`p_sparse` in the package) is positive if $x$ is
+sparser than every cluster, and $\rho_{\text{far}}$ (`p_far`) is positive if
+$x$ is not density-connected to any cluster.
 
-**Edge cases.** If all points are noise, every score is $-1$; if there is a
-single cluster and no noise, every score is $0$; points in singleton clusters
-score $0$; and if there is a single cluster plus noise, $b(x)$ is replaced by
-the dc-distance from $x$ to the closest noise point [@beer2026disco, Section 3].
-The DISCO score of a labelling is the mean of the pointwise scores.
+**Edge cases** [@beer2026disco, Section 3.1]. (i) If all points are noise,
+every score is $-1$. (ii) If there is a single cluster and no noise, every
+score is $0$. (iii) Points in singleton clusters score $0$. (iv) If there is
+a single cluster plus noise, the cluster points are compared with the closest
+noise point instead of the (non-existent) closest cluster, i.e. $b(x)$ is
+replaced by $\min_{y \in N} d_{dc}(x, y)$. (v) If a denominator is zero, for
+example when more than $\mu$ duplicate points have core distance $0$, the
+corresponding fraction is set to $0$.
 
 # Computing DISCO from the merge tree
 
@@ -154,7 +197,9 @@ Now fix a point $x$ and let $v_1, \dots, v_r$ be its ancestors, from its
 parent up to the root, and $s_k$ the child of $v_k$ that does *not* contain
 $x$. The sets of leaves below $s_1, \dots, s_r$ partition
 $X \setminus \{x\}$, and by the Lemma every point below $s_k$ is at
-dc-distance exactly $w_{v_k}$ from $x$. Writing $c_C(s)$ for the number of
+dc-distance exactly $w_{v_k}$ from $x$. As in the definition, the MST and the
+merge tree are built over all $n$ points, noise included; noise points only
+affect which leaves are counted. Writing $c_C(s)$ for the number of
 points of cluster $C$ below node $s$, we obtain
 $$
 S_C(x) = \sum_{y \in C} d_{dc}(x, y) = \sum_{k=1}^{r} w_{v_k}\, c_C(s_k),
@@ -178,7 +223,35 @@ dc-distance explicitly.
 
 ## Algorithm and complexity
 
-The resulting procedure has four steps.
+The complete procedure is summarised below; internal nodes of the merge tree
+are numbered $n + 1, \dots, 2n - 1$ in the order in which they are created,
+so that every parent has a larger number than its children.
+
+```
+Input : X (n x p), labels (clusters 1..K, noise -1), mu >= 2
+Output: pointwise DISCO scores rho(x_1), ..., rho(x_n)
+
+ 1  handle edge cases (i) all noise and (ii) one cluster without noise
+ 2  kappa  <- core distances (distance to the (mu-1)-th other point)
+ 3  E      <- Prim MST of d_m, computing d_m(x_i, x_j) when needed
+ 4  sort E by weight; build the merge tree with union-find:
+        each edge (i, j, w) creates node v with children
+        root(i), root(j) and height w_v = w
+ 5  bottom-up (v = n+1, ..., 2n-1):
+        c_C(v) <- c_C(left) + c_C(right)   for every cluster C
+        z(v)   <- z(left)   + z(right)       (number of noise points)
+ 6  top-down (v = 2n-1, ..., n+1), for both children u of v, sibling s:
+        S_C(u) <- S_C(v) + w_v * c_C(s)
+        m_C(u) <- min(m_C(v), w_v)  if c_C(s) > 0, else m_C(v)
+        m_N(u) <- min(m_N(v), w_v)  if z(s)   > 0, else m_N(v)
+ 7  cluster points: a = S_own / (|own| - 1),
+        b = min_C S_C / |C|   (or m_N in the one-cluster case (iv)),
+        rho = (b - a) / max(a, b);  singleton clusters -> 0      (iii)
+ 8  noise points: rho = min(rho_sparse(kappa), rho_far(m_C, kappa))
+ 9  set fractions with a zero denominator to 0                    (v)
+```
+
+The cost of each step is:
 
 1. Core distances from a $k$-nearest-neighbour search with \CRANpkg{FNN}
    [@fnn], as in the reference implementation.
@@ -191,12 +264,15 @@ The resulting procedure has four steps.
    $S_C(\cdot)$ and $m_C(\cdot)$, each in $O(nK)$ time and memory, followed by
    the vectorised evaluation of the scores.
 
-The total memory is $O(n(p + K))$ instead of $O(n^2)$, and the running time
-is dominated by the $O(n^2 p)$ spanning tree. The result is exact: the only
-differences to a matrix-based computation come from adding the same
+@beer2026disco state an overall complexity of $O(n^2)$ for DISCO, which the
+merge-tree algorithm does not change: the running time is still dominated by
+the $O(n^2 p)$ spanning tree. What changes is the memory, which drops from
+$O(n^2)$ to $O(n(p + K))$, and the constant factor, since no $n \times n$
+matrix has to be allocated, filled or traversed. The result is exact: the
+only differences to a matrix-based computation come from adding the same
 distances in a different order.
 
-# Implementation in discoCVI 0.2.0
+# Implementation
 
 \CRANpkg{discoCVI} 0.2.0 keeps the interface of version 0.1.1.
 `disco_score()` and `disco_samples()` now use the merge-tree algorithm; the
@@ -216,7 +292,7 @@ exported functions agree with the reference to within $10^{-10}$; observed
 differences are of the order of $10^{-15}$.
 
 **Singleton clusters.** The DISCO definition assigns score $0$ to points in
-singleton clusters [@beer2026disco, Section 3], as does the silhouette
+singleton clusters [@beer2026disco, Section 3.1], as does the silhouette
 implementation of scikit-learn [@pedregosa2011sklearn]. Version 0.1.1 set
 $a(x) = 0$ for such points and therefore returned $1$. Version 0.2.0 follows
 the definition; labellings without singleton clusters are unaffected.
@@ -350,7 +426,11 @@ two-dimensional data, energy was measured in software, and the absolute
 numbers depend on hardware. The comparison of the two versions is
 nevertheless paired (same data, same machine, interleaved runs), and the
 equality of the scores is verified by the test suite rather than by the
-benchmark alone.
+benchmark alone. Finally, DISCO is defined for any dissimilarity
+[@beer2026disco], whereas \CRANpkg{discoCVI} currently supports Euclidean
+distances on numeric data; since the merge-tree passes only need the
+spanning tree, supporting other dissimilarities would only require a
+different spanning-tree step.
 
 A practical pitfall concerns noise labels: \CRANpkg{dbscan} uses `0` and
 DISCO uses `-1`. Passing HDBSCAN labels unchanged silently treats all noise
