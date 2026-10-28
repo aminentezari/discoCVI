@@ -27,10 +27,13 @@ thousand points.
 The article shows that every quantity DISCO requires can be obtained from
 the single-linkage merge tree of the mutual-reachability minimum spanning
 tree in one pass, which gives an exact algorithm with memory linear in the
-number of points. It describes the implementation in discoCVI 0.2.0, its
-test suite against the previous version, a correction of the score of
-singleton clusters to match the published definition, and a benchmark of
-time, memory and energy consumption. I believe the article is of interest
+number of points. It describes the design of the package and a typical
+workflow (also provided as a vignette), the implementation in discoCVI
+0.2.0, its test suite, a correction of the score of singleton clusters to
+match the published definition, a comparison with the original Python
+implementation (identical scores, up to nine times faster and with a
+fraction of the memory), and a benchmark of time, memory and energy
+consumption. I believe the article is of interest
 to R Journal readers working on clustering and model selection, and to those
 concerned with the computational and environmental cost of statistical
 software.

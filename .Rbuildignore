@@ -13,3 +13,6 @@
 ^benchmarks$
 ^paper$
 ^cran-comments\.md$
+^doc$
+^Meta$
+^.*\.zip$

@@ -1,0 +1,165 @@
+---
+title: "Evaluating density-based clusterings with discoCVI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Evaluating density-based clusterings with discoCVI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>",
+                      fig.width = 6, fig.height = 4.2,
+                      eval = requireNamespace("dbscan", quietly = TRUE))
+```
+
+This vignette shows a complete workflow with **discoCVI**: cluster a dataset
+with a density-based algorithm, score the result with DISCO, use the score to
+choose a hyperparameter, and inspect individual points, in particular points
+labelled as noise.
+
+DISCO (Beer et al., 2026) is an *internal* cluster validity index: it judges a
+clustering using only the data and the labels, without ground truth. Unlike
+the silhouette coefficient, it measures distances along dense regions
+(density-connectivity distance), so it suits clusters of arbitrary shape, and
+it explicitly scores points labelled as noise. Scores lie in $[-1, 1]$; higher
+is better.
+
+## Data
+
+We create two interleaving half-moons and add uniformly scattered noise
+points. Base R is enough; no data package is needed.
+
+```{r data}
+library(discoCVI)
+library(dbscan)
+
+set.seed(42)
+make_moons <- function(n, sd = 0.08) {
+  n1 <- n %/% 2
+  t1 <- runif(n1, 0, pi)
+  t2 <- runif(n - n1, 0, pi)
+  moons <- rbind(cbind(cos(t1), sin(t1)),
+                 cbind(1 - cos(t2), 0.5 - sin(t2)))
+  moons + matrix(rnorm(2 * n, sd = sd), ncol = 2)
+}
+X <- rbind(make_moons(600),
+           cbind(runif(40, -1.5, 2.5), runif(40, -1, 1.5)))
+dim(X)
+plot(X, pch = 19, cex = 0.5, asp = 1, xlab = "x1", ylab = "x2")
+```
+
+## Scoring a clustering
+
+We cluster the data with HDBSCAN from the **dbscan** package.
+
+**Noise labels.** DISCO expects noise to be labelled `-1`. The **dbscan**
+package labels noise `0`, so the labels have to be converted. Passing them
+unchanged would silently treat all noise points as one extra cluster.
+
+```{r hdbscan}
+hdb <- hdbscan(X, minPts = 10)
+labels_hdb <- hdb$cluster
+labels_hdb[labels_hdb == 0] <- -1L
+table(labels_hdb)
+
+disco_score(X, labels_hdb)
+```
+
+For comparison, k-means with two clusters cuts across the moons and has no
+notion of noise:
+
+```{r kmeans}
+labels_km <- kmeans(X, centers = 2, nstart = 10)$cluster
+disco_score(X, labels_km)
+```
+
+DISCO prefers the density-based result, which follows the shape of the
+moons and separates the scattered points as noise.
+
+## Choosing a hyperparameter
+
+Because DISCO needs no ground truth, it can be used to choose the parameters
+of a clustering algorithm. Here we score HDBSCAN for several values of
+`minPts` and keep the best one.
+
+```{r tuning}
+score_minpts <- function(m) {
+  lab <- hdbscan(X, minPts = m)$cluster
+  lab[lab == 0] <- -1L
+  disco_score(X, lab)
+}
+grid <- c(3, 5, 10, 15, 20, 30, 50)
+scores <- sapply(grid, score_minpts)
+data.frame(minPts = grid, DISCO = round(scores, 3))
+plot(grid, scores, type = "b", pch = 19, xlab = "minPts",
+     ylab = "DISCO score")
+```
+
+The `min_points` argument of `disco_score()` is a separate parameter: it is
+the neighbourhood size used *inside* DISCO to measure density (default 5, as
+in the original paper), and it does not need to equal the `minPts` of the
+clustering.
+
+## Pointwise scores
+
+`disco_samples()` returns one score per point; `disco_score()` is their mean.
+Pointwise scores show where a clustering is good or bad.
+
+```{r pointwise}
+s <- disco_samples(X, labels_hdb)
+summary(s)
+
+pal <- hcl.colors(100, "RdYlBu")
+col <- pal[cut(s, breaks = seq(-1, 1, length.out = 101), include.lowest = TRUE)]
+plot(X, col = col, pch = ifelse(labels_hdb == -1, 4, 19), cex = 0.7,
+     asp = 1, xlab = "x1", ylab = "x2",
+     main = "Pointwise DISCO (blue = good, red = poor; x = noise)")
+```
+
+For points labelled as noise, a high score means the point really lies in a
+sparse region far from every cluster; a low or negative score means it is
+dense or density-connected to a cluster, so it should probably have been
+assigned to that cluster. `p_noise()` returns the two parts of the noise
+score separately:
+
+```{r noise}
+nz <- p_noise(X, labels_hdb)
+noise_scores <- data.frame(point    = which(labels_hdb == -1),
+                           p_sparse = nz$p_sparse,
+                           p_far    = nz$p_far)
+head(noise_scores[order(pmin(noise_scores$p_sparse, noise_scores$p_far)), ])
+```
+
+The rows at the top are the noise labels DISCO considers least convincing.
+
+## Several labelings of the same data
+
+`disco_score()` and `disco_samples()` never build an $n \times n$ matrix, so
+they scale to large datasets (100,000 points take well under a minute on a
+laptop). If you want to compare many labelings of a *small* dataset,
+you can also compute the density-connectivity distance matrix once and
+reuse it with `p_cluster()`. Keep in mind that this matrix has $n^2$ entries.
+
+```{r reuse}
+D <- compute_dc_distances(X, min_points = 5)
+dim(D)
+nn <- labels_hdb != -1
+summary(p_cluster(D[nn, nn], labels_hdb[nn], precomputed_dc_dists = TRUE))
+```
+
+## Summary
+
+A typical workflow is:
+
+1. cluster the data, for example with `dbscan::hdbscan()`;
+2. convert noise labels to `-1`;
+3. compare candidate clusterings with `disco_score()`;
+4. inspect `disco_samples()` and `p_noise()` to understand the chosen one.
+
+## Reference
+
+Beer A., Krieger L., Weber P., Ritzert M., Assent I., Plant C. (2026).
+Internal Evaluation of Density-Based Clusterings with Noise. *International
+Conference on Learning Representations (ICLR)*.
+doi:10.48550/arXiv.2503.00127

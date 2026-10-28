@@ -1,7 +1,7 @@
 Package: discoCVI
 Type: Package
 Title: Implementation of the DISCO Metric for Internal Clustering Evaluation
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(
     person("Amin", "Entezari",
            email   = "amin_entezari@outlook.com",
@@ -43,7 +43,10 @@ LinkingTo:
     Rcpp
 Suggests:
     dbscan,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 RoxygenNote: 7.3.3
 URL: https://github.com/aminentezari/discoCVI
 BugReports: https://github.com/aminentezari/discoCVI/issues

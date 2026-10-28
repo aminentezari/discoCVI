@@ -66,7 +66,7 @@ benchmarks/powermetrics_log.txt
 
 # R Journal article build outputs
 paper/*.html
-paper/entezari-disco.tex
+paper/disco-fast.tex
 paper/*.log
 paper/*.pdf
 paper/RJwrapper.pdf
@@ -76,6 +76,13 @@ paper/RJwrapper.bbl
 paper/RJwrapper.blg
 paper/RJwrapper.out
 paper/*.knit.md
-paper/entezari-disco.R
+paper/disco-fast.R
 paper/*_files/
 paper/Rlogo-5.png
+
+# built vignettes
+/doc/
+/Meta/
+
+# submission archives
+*.zip

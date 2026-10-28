@@ -1,15 +1,12 @@
 ## Submission
 
-This is an update of discoCVI from 0.1.1 to 0.2.0.
+This is a small update of discoCVI from 0.2.0 to 0.2.1.
 
-* The DISCO score is now computed without building any n x n matrix: the
-  minimum spanning tree is built in compiled code (Rcpp, new dependency) and
-  all required quantities are obtained in one pass over the resulting merge
-  tree. Results are identical to 0.1.1 up to floating-point rounding; a test
-  suite comparing all exported functions against the 0.1.1 implementation
-  has been added.
-* Bug fix: points in singleton clusters now score 0, as defined in the
-  original DISCO paper (Beer et al., <doi:10.48550/arXiv.2503.00127>).
+I apologise for the quick succession after 0.2.0. The only change is a new
+vignette describing a complete workflow ("Evaluating density-based
+clusterings with discoCVI"). The vignette is required for a submission of an
+article about the package to The R Journal. No R code, compiled code or
+exported function has changed.
 
 ## Test environments
 
@@ -19,10 +16,6 @@ This is an update of discoCVI from 0.1.1 to 0.2.0.
 ## R CMD check results
 
 0 errors | 0 warnings | 0 notes
-
-(Locally, the only note was "checking for future file timestamps: unable to
-verify current time", which is caused by the local machine's network
-settings and is not related to the package.)
 
 ## Reverse dependencies
 

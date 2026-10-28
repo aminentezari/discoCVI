@@ -1,3 +1,10 @@
+# discoCVI 0.2.1
+
+* New vignette, "Evaluating density-based clusterings with discoCVI", with a
+  complete workflow: clustering with HDBSCAN, converting noise labels,
+  choosing a hyperparameter with DISCO, and inspecting pointwise and noise
+  scores (`vignette("discoCVI")`).
+
 # discoCVI 0.2.0
 
 ## Performance
