@@ -1,380 +1,275 @@
 # discoCVI
 
-> **Implementation of the DISCO Metric for Internal Clustering Evaluation**
+> **Evaluate density-based clusterings, including their noise labels, without ground truth.**
 
-R implementation of the DISCO (Density-based Internal Score for Clustering
-Outcomes) metric — a Cluster Validity Index (CVI) for evaluating
-density-based clustering results, including explicit evaluation of noise point
-quality. Translated from the original Python reference implementation by
-Beer, Krieger, Weber et al. (2025).
-
-[![CRAN](https://www.r-pkg.org/badges/version/discoCVI)](https://CRAN.R-project.org/package=discoCVI)
+[![CRAN status](https://www.r-pkg.org/badges/version/discoCVI)](https://CRAN.R-project.org/package=discoCVI)
+[![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/discoCVI)](https://CRAN.R-project.org/package=discoCVI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![R >= 3.6](https://img.shields.io/badge/R-%3E%3D%203.6-blue.svg)](https://cran.r-project.org/)
-[![Paper](https://img.shields.io/badge/arXiv-2503.00127-red.svg)](https://arxiv.org/abs/2503.00127)
+[![DISCO paper](https://img.shields.io/badge/arXiv-2503.00127-b31b1b.svg)](https://arxiv.org/abs/2503.00127)
+
+**discoCVI** implements **DISCO** (Density-based Internal Score for
+Clusterings with nOise; Beer et al., ICLR 2026), an internal cluster validity
+index for density-based clustering. DISCO
+
+- works for clusters of **arbitrary shape**, because it measures distances
+  along dense regions (density-connectivity distance) instead of straight
+  lines;
+- is the first index that **explicitly scores noise labels**: a point
+  labelled as noise scores high only if it really lies in a sparse region far
+  from every cluster;
+- is defined **for every labelling**, including a single cluster, singleton
+  clusters and clusterings with only noise;
+- returns scores in **[−1, 1]** (higher is better), both for the whole
+  clustering and for each point.
+
+Typical uses are comparing the results of different clustering algorithms
+and choosing the parameters of DBSCAN or HDBSCAN when no labelled data exist.
 
 ---
 
-## What's new in 0.2.0
+## Contents
 
-- **Much faster, much less memory, same scores.** DISCO is now computed
-  without building any n × n matrix. It is 23 to 138 times faster than 0.1.1
-  (n = 500 to 4,000), and 100,000 points can be scored in under a minute
-  with about 200 MB of peak memory for the whole R process (0.1.1 needed
-  1.2 GB for 4,000 points).
-- **Identical results.** Every exported function is tested against the 0.1.1
-  implementation (`tests/testthat`); differences are at the level of
-  floating-point rounding (< 1e-14).
-- **Bug fix.** Points in singleton clusters now score 0, as defined in the
-  DISCO paper (0.1.1 gave them 1).
-- **Compiled code.** The minimum spanning tree is built in C++ (Rcpp).
-
-See [NEWS.md](NEWS.md) for details.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Why DISCO?](#why-disco)
 - [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Function Reference](#function-reference)
-- [Algorithm](#algorithm)
+- [Quick start](#quick-start)
+- [Functions](#functions)
+- [Noise labels: an important detail](#noise-labels-an-important-detail)
+- [Interpreting scores](#interpreting-scores)
+- [How DISCO works](#how-disco-works)
 - [Performance](#performance)
-- [Implementation Notes](#implementation-notes)
-- [Experimental Results](#experimental-results)
-- [File Structure](#file-structure)
-- [Results Interpretation](#results-interpretation)
+- [Correctness](#correctness)
+- [Version history](#version-history)
 - [Citation](#citation)
-
----
-
-## Overview
-
-discoCVI evaluates clustering quality **without ground truth labels** by using
-**density-connectivity distance (dc-distance)** instead of Euclidean distance.
-It is the first CVI that:
-
-- Handles **arbitrary-shaped clusters** (not just convex/spherical)
-- Explicitly evaluates **noise point quality** (not just cluster quality)
-- Returns bounded, interpretable scores in **[−1, 1]**
-
----
-
-## Why DISCO?
-
-Traditional CVIs like Silhouette and Davies-Bouldin assume convex clusters and
-ignore noise. On non-convex data, they rank the wrong algorithm higher:
-
-| Algorithm | Silhouette | Davies-Bouldin | **DISCO** |
-|-----------|-----------|----------------|-----------|
-| DBSCAN (correct) | −0.16 ❌ | 2.8 (bad) ❌ | **0.68 ✅** |
-| K-Means (wrong)  | 0.37 ✅  | 0.6 (good) ✅ | **0.22 ❌** |
-
-DISCO correctly identifies DBSCAN as better on non-convex data.
+- [Related packages](#related-packages)
+- [Contributing](#contributing)
+- [License and acknowledgements](#license-and-acknowledgements)
 
 ---
 
 ## Installation
 
 ```r
-# Released version from CRAN
+# released version from CRAN
 install.packages("discoCVI")
 
-# Development version from GitHub
+# development version from GitHub
 # install.packages("remotes")
 remotes::install_github("aminentezari/discoCVI")
 ```
 
-**Dependencies** (installed automatically):
-- `FNN` — fast k-nearest neighbour search
-- `Rcpp` — compiled minimum spanning tree (from 0.2.0)
-
-Installing from GitHub compiles C++ code; on macOS this needs the Xcode
-command line tools (`xcode-select --install`), on Windows Rtools.
+Dependencies: [FNN](https://CRAN.R-project.org/package=FNN) (nearest
+neighbours) and [Rcpp](https://CRAN.R-project.org/package=Rcpp) (compiled
+code). Installing from GitHub compiles C++ code; on macOS this needs the Xcode
+command line tools (`xcode-select --install`), on Windows
+[Rtools](https://cran.r-project.org/bin/windows/Rtools/).
 
 ---
 
-## Quick Start
+## Quick start
 
 ```r
 library(discoCVI)
-library(dbscan)
+library(dbscan)   # for HDBSCAN; any clustering method can be used
 
-# 1. Two concentric circles with a little noise
+# two half-moons plus scattered noise
 set.seed(42)
-n     <- 300
-theta <- runif(n, 0, 2 * pi)
-r     <- ifelse(seq_len(n) <= n / 2, 1, 0.4)
-X     <- cbind(r * cos(theta), r * sin(theta)) + matrix(rnorm(2 * n, sd = 0.05), ncol = 2)
+moons <- function(n, sd = 0.08) {
+  t1 <- runif(n / 2, 0, pi); t2 <- runif(n / 2, 0, pi)
+  rbind(cbind(cos(t1), sin(t1)), cbind(1 - cos(t2), 0.5 - sin(t2))) +
+    matrix(rnorm(2 * n, sd = sd), ncol = 2)
+}
+X <- rbind(moons(600), cbind(runif(40, -1.5, 2.5), runif(40, -1, 1.5)))
 
-# 2. Cluster with DBSCAN and with k-means
-db_labels <- dbscan(X, eps = 0.2, minPts = 5)$cluster - 1L   # noise 0 -> -1
-km_labels <- kmeans(X, centers = 2, nstart = 10)$cluster - 1L
+# 1. cluster, and convert dbscan's noise label 0 to DISCO's -1
+labels <- hdbscan(X, minPts = 10)$cluster
+labels[labels == 0] <- -1L
 
-# 3. Evaluate: DBSCAN should score clearly higher
-disco_score(X, db_labels)
-disco_score(X, km_labels)
+# 2. score the clustering (higher is better)
+disco_score(X, labels)
 
-# 4. Per-point scores: which points are badly placed?
-scores <- disco_samples(X, db_labels)
-summary(scores)
-which(scores < 0)
+# 3. compare with k-means, which cuts across the moons
+disco_score(X, kmeans(X, centers = 2, nstart = 10)$cluster)
+
+# 4. choose minPts without ground truth
+score_minpts <- function(m) {
+  lab <- hdbscan(X, minPts = m)$cluster
+  lab[lab == 0] <- -1L
+  disco_score(X, lab)
+}
+sapply(c(3, 5, 10, 20, 50), score_minpts)
+
+# 5. inspect individual points
+s <- disco_samples(X, labels)   # one score per point
+which(s < 0)                    # badly placed points
 ```
 
-> **Noise labels.** DISCO expects noise to be labelled **`-1`**. The `dbscan`
-> package labels noise **`0`** (both `dbscan()` and `hdbscan()`), so convert
-> first: `labels <- res$cluster - 1L`, or `labels[labels == 0] <- -1L`.
+A complete walk-through, including plots of the pointwise scores and an
+analysis of noise points, is in the vignette:
+
+```r
+vignette("discoCVI")
+```
 
 ---
 
-## Function Reference
+## Functions
 
-### Core Functions
+| Function | Returns |
+|---|---|
+| `disco_score(X, labels, min_points = 5)` | DISCO score of the clustering: one number in [−1, 1] |
+| `disco_samples(X, labels, min_points = 5)` | pointwise DISCO scores, one per row of `X` |
+| `p_cluster(X, labels, min_points = 5, precomputed_dc_dists = FALSE)` | scores of cluster points (silhouette on density-connectivity distances) |
+| `p_noise(X, labels, min_points = 5, dc_dists = NULL)` | `list(p_sparse, p_far)`: the two parts of the score of each noise point |
+| `compute_dc_distances(X, min_points = 5)` | the n × n density-connectivity distance matrix |
 
-#### `disco_score(X, labels, min_points = 5)`
-Returns a single number summarising overall clustering quality.
+**Arguments.** `X` is a numeric matrix or data frame (rows = points).
+`labels` is an integer vector with one cluster label per point and **`-1`
+for noise**. `min_points` (default 5, as in the DISCO paper) is the
+neighbourhood size DISCO uses to measure density; it does not need to match
+the `minPts` of your clustering algorithm.
 
-| Argument | Type | Description |
-|---|---|---|
-| `X` | matrix / data.frame | n x p feature matrix |
-| `labels` | integer vector | Cluster labels; use `-1` for noise |
-| `min_points` | integer | k for dc-distance. Default: `5` |
-
-**Returns:** Single numeric in [-1, 1].
-
-#### `disco_samples(X, labels, min_points = 5)`
-Returns per-point scores — useful for identifying problematic points.
-
-```r
-scores     <- disco_samples(X, labels)
-bad_points <- which(scores < 0)
-```
-
-#### `p_cluster(X, labels, min_points, precomputed_dc_dists)`
-Silhouette-style scores using dc-distances. `-1` is treated as a valid cluster here.
-
-#### `p_noise(X, labels, min_points, dc_dists)`
-Returns `list(p_sparse, p_far)` for noise points only.
-
-#### `compute_dc_distances(X, min_points = 5)`
-Returns the n x n DC-distance matrix directly. Useful for comparing several
-labelings of the same data, but note that the matrix itself has n² entries;
-`disco_score()` and `disco_samples()` do not need it.
+`disco_score()` and `disco_samples()` never build an n × n matrix and scale
+to large datasets. `compute_dc_distances()` returns a full n × n matrix by
+definition; use it for small datasets or when you want to reuse the
+distances for many labellings:
 
 ```r
 D  <- compute_dc_distances(X)
-s1 <- p_cluster(D, labels1, precomputed_dc_dists = TRUE)
-s2 <- p_cluster(D, labels2, precomputed_dc_dists = TRUE)
+nn <- labels != -1
+p_cluster(D[nn, nn], labels[nn], precomputed_dc_dists = TRUE)
 ```
 
 ---
 
-## Algorithm
+## Noise labels: an important detail
 
-### Step 1 - Core Distance
-```
-k(x) = d_euclidean(x, x_{min_points-1})
-```
+DISCO uses **`-1`** for noise, as the original implementation and
+scikit-learn do. The **dbscan** package uses **`0`** for noise in both
+`dbscan()` and `hdbscan()`. Convert the labels before scoring:
 
-### Step 2 - Mutual Reachability Distance
-```
-dm(x, y) = max( k(x), k(y), d_euclidean(x, y) )
-```
-
-### Step 3 - DC-Distance via MST
-```
-dc(x, y) = max edge weight on minimax path x -> y in MST
+```r
+labels <- hdbscan(X, minPts = 10)$cluster
+labels[labels == 0] <- -1L
 ```
 
-### Step 4 - DISCO Score per Point
+If you pass the labels unchanged, all noise points are silently treated as
+one extra cluster, which changes the score and its meaning.
 
-**Cluster points:**
-```
-a = mean dc-distance to own cluster (excluding self)
-b = min over other clusters of mean dc-distance
-p(x) = (b - a) / max(a, b)
-```
+---
 
-**Noise points:**
-```
-p_sparse = (k(n) - k_max(C)) / max(k(n), k_max(C))
-p_far    = (dc_min(n,C) - k_max(C)) / max(dc_min(n,C), k_max(C))
-p(n)     = min(p_sparse, p_far)
-```
+## Interpreting scores
 
-**Overall:**
-```
-DISCO = (1/n) * sum(p(x_i))
-```
+| Score | Meaning |
+|---|---|
+| 0.7 to 1.0 | excellent: well-separated, dense clusters and convincing noise |
+| 0.4 to 0.7 | good: clear cluster structure |
+| 0.0 to 0.4 | moderate: clusters overlap or are weakly separated |
+| −0.3 to 0.0 | poor: many points are better suited to another cluster |
+| −1.0 to −0.3 | very poor |
+
+For a **cluster point**, a negative score means the point is, on average,
+closer (in density-connectivity) to another cluster than to its own. For a
+**noise point**, a negative score means the point lies in a dense region or
+is density-connected to a cluster, so it should probably have been assigned
+to that cluster. These thresholds are rules of thumb; compare scores between
+clusterings of the same data rather than across datasets.
+
+---
+
+## How DISCO works
+
+1. **Core distance** κ(x): distance from x to its `min_points`-th nearest
+   neighbour (counting x itself).
+2. **Mutual-reachability distance**: d_m(x, y) = max(κ(x), κ(y), ‖x − y‖).
+3. **Density-connectivity distance** d_dc(x, y): the largest edge on the path
+   between x and y in the minimum spanning tree of d_m. Points are close if
+   they are connected through a dense region.
+4. **Cluster points** get the silhouette coefficient computed on d_dc:
+   (b − a) / max(a, b), with a the mean distance to the own cluster and b the
+   mean distance to the closest other cluster.
+5. **Noise points** get min(p_sparse, p_far): p_sparse is positive if the
+   point is sparser than every cluster, p_far is positive if it is not
+   density-connected to any cluster.
+6. The **DISCO score** is the mean of the pointwise scores.
+
+Edge cases follow the paper: only noise → −1 for all points; one cluster and
+no noise → 0; points in singleton clusters → 0; one cluster plus noise →
+cluster points are compared with the closest noise point.
+
+**Implementation (since 0.2.0).** The density-connectivity distance between
+two points equals the height at which they are first joined in the
+single-linkage merge tree of the minimum spanning tree. discoCVI therefore
+builds the spanning tree in C++ (distances computed on the fly), turns it into
+the merge tree, and gathers every quantity DISCO needs in one pass over that
+tree. No n × n matrix is ever stored: memory grows linearly with n, while the
+running time remains O(n²), as in the original definition.
 
 ---
 
 ## Performance
 
-From version 0.2.0, `disco_samples()` and `disco_score()` never store an
-n × n matrix:
+Synthetic data (three Gaussian clusters + 5 % noise, 2 dimensions); MacBook
+Pro, Apple M2 Pro, 16 GB, single thread; median of repeated runs, each in a
+fresh process; peak memory of the whole process. Scores are identical in all
+comparisons.
 
-1. Core distances come from a k-nearest-neighbour search.
-2. The minimum spanning tree of the mutual-reachability graph is built in C++
-   with Prim's algorithm, computing each distance only when it is needed.
-3. Sorting the tree edges gives the single-linkage merge tree. The dc-distance
-   between two points is exactly the weight of the merge at which they first
-   become connected.
-4. One pass over this merge tree accumulates, for every point, the sum and the
-   minimum of its dc-distances to each cluster — everything DISCO needs.
+**Against the previous version (0.1.1):**
 
-Memory therefore grows linearly with the number of points (times the number
-of clusters) instead of quadratically. Time is still dominated by the
-O(n²) spanning tree, but without R loops or large temporary matrices.
-
-Benchmark on synthetic data (3 Gaussian blobs + 5% noise, 2 dimensions;
-MacBook Pro, Apple M2 Pro, 16 GB, single thread; median of 5 runs, each in a fresh R
-process; peak memory = maximum resident set size of the whole R process,
-of which about 67 MB is R itself; energy measured with CodeCarbon, minus an
-R start-up baseline). Scores of the two versions are identical.
-
-| n | time 0.1.1 | time 0.2.0 | speed-up | peak memory 0.1.1 | peak memory 0.2.0 |
+| n | 0.1.1 | 0.2.x | speed-up | memory 0.1.1 | memory 0.2.x |
 |---|---|---|---|---|---|
 | 500 | 0.25 s | 0.011 s | 23× | 118 MB | 91 MB |
-| 1,000 | 1.0 s | 0.022 s | 46× | 200 MB | 92 MB |
 | 2,000 | 4.3 s | 0.053 s | 81× | 377 MB | 89 MB |
 | 4,000 | 18.6 s | 0.134 s | 138× | 1,222 MB | 93 MB |
-| 16,000 | — | 1.4 s | | — | 109 MB |
-| 32,000 | — | 5.3 s | | — | 125 MB |
-| 100,000 | — | 50 s | | — | 198 MB |
+| 32,000 | not feasible | 5.3 s | | | 125 MB |
+| 100,000 | not feasible | 50 s | | | 198 MB |
 
-At n = 4,000, version 0.2.0 uses about 0.26 mWh instead of 45 mWh of
-energy per evaluation. Full results and scripts are in `benchmarks/`.
+**Against the original Python implementation (Beer et al.):**
 
----
-
-## Implementation Notes
-
-The original R version (0.1.1) is a **line-by-line translation** of the Python
-reference (`disco.py` + `dctree.py`). Three issues were found and fixed during
-the translation:
-
-### Bug 1 - Core Distance Off-by-One
-
-Python includes self (dist=0) in k-NN, so effective neighbor is k-1.
-`FNN::get.knn` excludes self:
-
-```r
-k          <- min_points - 1
-knn_result <- FNN::get.knn(X, k = k)
-core_dists <- knn_result$nn.dist[, k]
-```
-
-### Bug 2 - MST Tie-Breaking
-
-`igraph::mst` breaks equal-weight edges differently than Python's Prim.
-Fixed by porting Python's exact `_get_mst_edges()` (dctree.py lines 401-438).
-(The dc-distances themselves do not depend on how ties are broken, because the
-largest edge on a path between two points is the same in every minimum
-spanning tree.)
-
-### Bug 3 - K-Means Cross-Language Non-Determinism
-
-R and Python RNGs produce different K-Means partitions from the same seed.
-Fixed by exporting Python labels as CSV and loading in R:
-
-```python
-# Python
-pd.DataFrame({"km_label": km.labels_}).to_csv("python_km_labels.csv", index=False)
-```
-```r
-# R
-km_labels <- as.integer(read.csv("python_km_labels.csv")$km_label)
-```
-
-After all fixes, R and Python produce **identical scores to 10 decimal places**:
-```
-DISCO - DBSCAN  : 0.6900921813  (R == Python)
-DISCO - K-Means : 0.0270091908  (R == Python)
-```
-
-### Bug 4 - Singleton Clusters (fixed in 0.2.0)
-
-The DISCO paper sets the score of a point that forms a cluster on its own to
-0 (Section 3, "Edge cases"). Version 0.1.1 returned 1 for such points, because
-the mean distance to the "rest of its cluster" was taken as 0. Version 0.2.0
-follows the paper. Labelings without singleton clusters are not affected.
-
-Version 0.2.0 replaces the matrix-based computation with the merge-tree
-algorithm described under [Performance](#performance) and is tested to give
-the same results as 0.1.1 (apart from the singleton fix).
-
----
-
-## Experimental Results
-
-Eight benchmark datasets validated against the Python reference. All
-differences are within machine epsilon (< 1e-14).
-
-| Dataset | n | Clusters | DBSCAN | K-Means | Match |
+| n | Python | discoCVI 0.2.x | speed-up | memory Python | memory discoCVI |
 |---|---|---|---|---|---|
-| Concentric Circles | 300 | 2 | 0.6900921813 | 0.0270091908 | R == Python |
-| Two Moons | 1000 | 2 | 0.8179598377 | 0.2832395719 | R == Python |
-| 3-Spiral | 312 | 3 | 0.5836514046 | -0.0014176359 | R == Python |
-| Complex9 | 3031 | 9 | 0.4209464514 | 0.0551096775 | R == Python |
-| Complex8 | 2551 | 8 | 0.0718687652 | 0.0122574749 | R == Python |
-| Dartboard1 | 1000 | 4 | 0.8743426861 | -0.0033636711 | R == Python |
-| Blobs | 450 | 3 | 0.8548953163 | 0.8575691834 | R == Python |
-| Diagonal Blobs | 600 | 3 | 0.7215536253 | 0.7043253397 | R == Python |
+| 500 | 0.032 s | 0.011 s | 2.9× | 68 MB | 88 MB |
+| 2,000 | 0.262 s | 0.056 s | 4.7× | 211 MB | 93 MB |
+| 8,000 | 3.53 s | 0.405 s | 8.7× | 1,134 MB | 96 MB |
 
-> **Note:** Negative K-Means scores on Dartboard1 and 3-Spiral are correct and
-> expected — DISCO penalises algorithms that cut through ring or spiral structures.
+R itself accounts for about 67 MB of the discoCVI figures. Energy
+measurements (CodeCarbon) show the same savings: one evaluation of 4,000
+points used 45 mWh with 0.1.1 and 0.26 mWh with 0.2.x. All scripts and raw
+results are in [`benchmarks/`](https://github.com/aminentezari/discoCVI/tree/main/benchmarks).
 
 ---
 
-## File Structure
+## Correctness
 
-```
-discoCVI/
-├── R/
-│   ├── disco.R              <- Exported functions and documentation
-│   ├── disco_tree.R         <- Fast merge-tree engine (0.2.0)
-│   └── RcppExports.R        <- Generated by Rcpp
-├── src/
-│   ├── prim_mrd.cpp         <- Minimum spanning tree in C++ (0.2.0)
-│   └── RcppExports.cpp      <- Generated by Rcpp
-├── tests/testthat/          <- Equivalence tests against 0.1.1
-├── man/                     <- Generated by devtools::document()
-├── benchmarks/              <- Timing, memory and energy benchmarks
-├── DESCRIPTION
-├── NAMESPACE                <- Generated by devtools::document()
-├── NEWS.md
-├── LICENSE
-└── README.md
-```
+- The test suite (`tests/testthat`) keeps the 0.1.1 implementation as a
+  reference and compares **all exported functions** on random data (1 to 8
+  dimensions, `min_points` 2 to 10, with and without noise, singleton
+  clusters, one cluster plus noise, mostly-noise and random labellings).
+  Differences are of the order of 1e-15.
+- Pointwise scores agree with the **original Python implementation** to
+  within 3e-13 on all benchmark datasets, including one with a singleton
+  cluster ([`benchmarks/python_compare/`](https://github.com/aminentezari/discoCVI/tree/main/benchmarks/python_compare)).
+- Earlier validation of 0.1.1 against the Python reference on eight
+  benchmark datasets (circles, moons, spirals, Complex8/9, Dartboard, blobs)
+  gave identical scores to 10 decimal places.
 
 ---
 
-## Results Interpretation
+## Version history
 
-| Score | Meaning |
-|---|---|
-| 0.7 - 1.0 | Excellent - well-separated, compact clusters |
-| 0.4 - 0.7 | Good - clear cluster structure |
-| 0.0 - 0.4 | Moderate - overlapping clusters |
-| -0.3 - 0.0 | Poor - misassigned points |
-| -1.0 - -0.3 | Very poor - clustering worse than random |
+- **0.2.1**: new vignette with a complete workflow.
+- **0.2.0**: DISCO computed without any n × n matrix (23–138× faster than
+  0.1.1, linear memory, 100,000 points in under a minute); minimum spanning
+  tree in C++ via Rcpp; test suite against 0.1.1; **bug fix**: points in
+  singleton clusters now score 0, as defined in the paper (0.1.1 gave 1).
+- **0.1.1**: first CRAN release, a line-by-line translation of the Python
+  reference implementation.
 
-### Common Pitfall
-
-```r
-# WRONG: dbscan() and hdbscan() use 0 for noise
-labels <- dbscan(X, eps = 0.2)$cluster
-
-# CORRECT: DISCO uses -1 for noise
-labels <- dbscan(X, eps = 0.2)$cluster - 1L
-```
+Details in [NEWS.md](https://github.com/aminentezari/discoCVI/blob/main/NEWS.md).
 
 ---
 
 ## Citation
+
+If you use discoCVI, please cite the DISCO paper and the package:
 
 ```bibtex
 @inproceedings{beer2026disco,
@@ -383,24 +278,54 @@ labels <- dbscan(X, eps = 0.2)$cluster - 1L
                Ritzert, Martin and Assent, Ira and Plant, Claudia},
   booktitle = {International Conference on Learning Representations (ICLR)},
   year      = {2026},
-  note      = {arXiv:2503.00127}
+  doi       = {10.48550/arXiv.2503.00127}
+}
+
+@manual{discocvi,
+  title  = {discoCVI: Implementation of the DISCO Metric for Internal
+            Clustering Evaluation},
+  author = {Entezari, Amin},
+  year   = {2026},
+  note   = {R package},
+  doi    = {10.32614/CRAN.package.discoCVI},
+  url    = {https://CRAN.R-project.org/package=discoCVI}
 }
 ```
 
-**R Package:**
-```
-Entezari A (2026). discoCVI: Implementation of the DISCO Metric for
-Internal Clustering Evaluation. R package version 0.2.0.
-https://CRAN.R-project.org/package=discoCVI
-```
+You can also run `citation("discoCVI")` in R.
 
 ---
 
-## License
+## Related packages
 
-MIT © Amin Entezari
+- [dbscan](https://CRAN.R-project.org/package=dbscan): DBSCAN, HDBSCAN and
+  OPTICS clustering (produces the labels that discoCVI evaluates).
+- [DBCVindex](https://CRAN.R-project.org/package=DBCVindex): the DBCV
+  density-based validity index.
+- [fpc](https://CRAN.R-project.org/package=fpc),
+  [clusterCrit](https://CRAN.R-project.org/package=clusterCrit),
+  [cluster](https://CRAN.R-project.org/package=cluster): classical validity
+  indices (silhouette, CDbw and many others).
 
-Original Python implementation by Beer, Krieger, Weber, Ritzert, Assent,
-Plant (2025).
+None of these evaluates noise labels; that is what DISCO adds.
 
-*For questions: amin_entezari@outlook.com*
+---
+
+## Contributing
+
+Bug reports and feature requests are welcome on
+[GitHub issues](https://github.com/aminentezari/discoCVI/issues). Please
+include a small reproducible example.
+
+---
+
+## License and acknowledgements
+
+MIT © Amin Entezari.
+
+DISCO was proposed by Anna Beer, Lena Krieger, Pascal Weber, Martin Ritzert,
+Ira Assent and Claudia Plant; the original Python implementation is by Beer,
+Krieger and Weber, who are also listed as authors of this package. Davide
+Chicco supervised the development of version 0.1.
+
+*Contact: amin_entezari@outlook.com*
